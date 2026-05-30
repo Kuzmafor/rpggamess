@@ -1,0 +1,16 @@
+{
+  "appId": "com.bladeoffate.game",
+  "appName": "Blade of Fate",
+  "webDir": "dist",
+  "android": {
+    "buildOptions": {
+      "releaseType": "APK"
+    }
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon",
+      "iconColor": "#ffd166"
+    }
+  }
+}

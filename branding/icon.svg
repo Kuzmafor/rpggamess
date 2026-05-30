@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="80%">
+      <stop offset="0%"  stop-color="#22275b"/>
+      <stop offset="55%" stop-color="#0d1136"/>
+      <stop offset="100%" stop-color="#05071a"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="50%" cy="40%" r="55%">
+      <stop offset="0%"  stop-color="#ffd166" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#ffd166" stop-opacity="0.0"/>
+    </radialGradient>
+    <linearGradient id="blade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffe98a"/>
+      <stop offset="60%" stop-color="#ffd166"/>
+      <stop offset="100%" stop-color="#7a4f0a"/>
+    </linearGradient>
+    <linearGradient id="bladeShine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#fffacd"/>
+      <stop offset="100%" stop-color="#fff7d9" stop-opacity="0.0"/>
+    </linearGradient>
+    <linearGradient id="hilt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#7a4f0a"/>
+      <stop offset="100%" stop-color="#3a2410"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#e8edf5"/>
+      <stop offset="100%" stop-color="#7d869c"/>
+    </linearGradient>
+    <radialGradient id="gem" cx="50%" cy="40%" r="50%">
+      <stop offset="0%"  stop-color="#ff7a2a"/>
+      <stop offset="100%" stop-color="#a02216"/>
+    </radialGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+  </defs>
+
+  <!-- Фон со скруглением (для Play Store нужен квадрат, но округление и так применит OS) -->
+  <rect x="0" y="0" width="512" height="512" rx="96" ry="96" fill="url(#bg)"/>
+  <!-- Звёзды -->
+  <g fill="#fff" opacity="0.6">
+    <circle cx="60"  cy="80"  r="2"/>
+    <circle cx="120" cy="50"  r="1.5"/>
+    <circle cx="180" cy="95"  r="1"/>
+    <circle cx="430" cy="70"  r="1.5"/>
+    <circle cx="470" cy="120" r="1"/>
+    <circle cx="380" cy="40"  r="2"/>
+    <circle cx="80"  cy="150" r="1"/>
+    <circle cx="440" cy="180" r="1"/>
+  </g>
+
+  <!-- Лучевое сияние -->
+  <g transform="translate(256 256)" opacity="0.9">
+    <ellipse rx="240" ry="240" fill="url(#halo)"/>
+  </g>
+
+  <!-- Гора-силуэт под мечом -->
+  <path d="M0 460 L90 360 L160 410 L240 320 L320 410 L400 350 L512 460 Z" fill="#0a1230" opacity="0.85"/>
+
+  <!-- Меч -->
+  <g transform="translate(256 290) rotate(-25)">
+    <!-- Лезвие -->
+    <path d="M0 -210 L24 -190 L24 80 L0 110 L-24 80 L-24 -190 Z"
+          fill="url(#blade)" stroke="#7a4f0a" stroke-width="4"/>
+    <!-- блик на лезвии -->
+    <path d="M-10 -180 L8 -170 L8 60 L-10 80 Z" fill="url(#bladeShine)" opacity="0.6"/>
+    <!-- Гарда -->
+    <rect x="-58" y="80" width="116" height="20" rx="6" fill="url(#hilt)" stroke="#1a1108" stroke-width="3"/>
+    <rect x="-72" y="86" width="14" height="10" rx="3" fill="url(#hilt)" stroke="#1a1108" stroke-width="3"/>
+    <rect x="58"  y="86" width="14" height="10" rx="3" fill="url(#hilt)" stroke="#1a1108" stroke-width="3"/>
+    <!-- Рукоять -->
+    <rect x="-12" y="100" width="24" height="76" rx="6" fill="url(#hilt)" stroke="#1a1108" stroke-width="3"/>
+    <!-- обмотка -->
+    <g stroke="#1a1108" stroke-width="2">
+      <line x1="-10" y1="112" x2="10" y2="112"/>
+      <line x1="-10" y1="124" x2="10" y2="124"/>
+      <line x1="-10" y1="136" x2="10" y2="136"/>
+      <line x1="-10" y1="148" x2="10" y2="148"/>
+      <line x1="-10" y1="160" x2="10" y2="160"/>
+    </g>
+    <!-- Навершие с камнем -->
+    <circle cx="0" cy="186" r="20" fill="url(#metal)" stroke="#1a1108" stroke-width="3"/>
+    <circle cx="0" cy="186" r="10" fill="url(#gem)"/>
+    <circle cx="-3" cy="183" r="3" fill="#ffe27a"/>
+  </g>
+
+  <!-- Магический блик у острия -->
+  <g transform="translate(256 76) rotate(-25)" filter="url(#soft)">
+    <ellipse cx="0" cy="0" rx="30" ry="18" fill="#fff7d9" opacity="0.7"/>
+  </g>
+
+  <!-- Подпись внизу — стилизованный руниче-камень -->
+  <g transform="translate(256 460)">
+    <rect x="-70" y="-22" width="140" height="36" rx="18" fill="#0a0e2a" stroke="#ffd166" stroke-width="2" opacity="0.95"/>
+    <text x="0" y="3" text-anchor="middle"
+          font-family="-apple-system, Segoe UI, Roboto, sans-serif"
+          font-size="18" font-weight="900" fill="#ffd166" letter-spacing="2">BLADE</text>
+  </g>
+</svg>

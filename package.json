@@ -1,0 +1,33 @@
+{
+  "name": "blade-of-fate",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Idle / incremental RPG built with React, Vite and Capacitor.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "cap:add:android": "cap add android",
+    "cap:sync": "cap sync android",
+    "android:build": "vite build && cap sync android",
+    "android:open": "vite build && cap sync android && cap open android",
+    "android:icons": "node scripts/make-icons.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/local-notifications": "8.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "sharp": "^0.33.5",
+    "vite": "^5.4.10"
+  }
+}
