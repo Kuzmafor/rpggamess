@@ -407,7 +407,9 @@ function Boosts() {
     { id: 'gold_long', icon: 'gold',   kind: 'gold' },
     { id: 'dmg_mega',  icon: 'flame',  kind: 'dmg' },
   ].map(b => {
-    const u = b.kind === 'dmg' ? boosts.dmgBoostUntil : boosts.goldBoostUntil
+    // Активность считаем по ИНДИВИДУАЛЬНОМУ таймеру буста, а не по общему
+    // таймеру типа — иначе покупка одного «зажигала» все бусты того же типа.
+    const u = (boosts.active && boosts.active[b.id]) || 0
     return { ...b, active: u > now, until: u }
   })
 

@@ -165,7 +165,7 @@ export default function StatsModal({ onClose }) {
                   <span className="target-val">😡 босс ускоряет регенерацию</span>
                 </div>
               )}
-              {target.isBoss && target.roleLock && (
+              {target.isBoss && target.roleLock && (target.roleLockUntil || 0) > Date.now() && (
                 <div className="target-row">
                   <span className="target-label">Замок</span>
                   <span className="target-val">🔒 урон только от: {ROLE_LABEL[target.roleLock] || target.roleLock}</span>

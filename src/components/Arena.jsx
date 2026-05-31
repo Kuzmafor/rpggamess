@@ -186,7 +186,7 @@ export default function Arena() {
               disabled={dead}
             >
               <div className="enemy-hud">
-                {(statuses.length > 0 || (en.isBoss && (en.shield || en.enrage || en.roleLock))) && (
+                {(statuses.length > 0 || (en.isBoss && (en.shield || en.enrage || (en.roleLock && (en.roleLockUntil || 0) > Date.now())))) && (
                   <div className="status-row">
                     {statuses.map(sid => {
                       const def = STATUSES[sid]
@@ -199,7 +199,7 @@ export default function Arena() {
                     })}
                     {en.isBoss && en.shield > 0 && <span className="status-pill phase">🛡️</span>}
                     {en.isBoss && en.enrage && <span className="status-pill phase rage">😡</span>}
-                    {en.isBoss && en.roleLock && (
+                    {en.isBoss && en.roleLock && (en.roleLockUntil || 0) > Date.now() && (
                       <span className="status-pill phase lock" title={`Только ${en.roleLock}`}>
                         🔒{en.roleLock === 'mage' ? '🔮' : en.roleLock === 'ranged' ? '🏹' : '⚔️'}
                       </span>

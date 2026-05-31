@@ -108,13 +108,19 @@ export function buildWaveLineup(stage, wave, ng = 0) {
     const cycleHp     = Math.pow(2.2, cycle); // 1, 2.2, 4.84, 10.6…
     const cycleReward = Math.pow(1.8, cycle);
     const maxHp = Math.ceil(b.hpBase * hpScale * 1.5 * cycleHp);
+    // Награда босса должна заметно превышать награду за обычных врагов той же
+    // зоны. Берём максимальную базу обычного врага на этой зоне и гарантируем,
+    // что босс даёт минимум 25 таких убийств — иначе мелочь «обгоняла» босса.
+    const maxCommonBase = Math.max(...COMMON_ENEMIES.map(e => e.reward));
+    const bossRewardRaw = Math.ceil(b.reward * goldScale * cycleReward);
+    const bossRewardFloor = Math.ceil(maxCommonBase * goldScale * 25);
     return [{
       ...b,
       isBoss: true,
       uid: `b_${stage}_${wave}`,
       hp: maxHp,
       maxHp,
-      reward: Math.ceil(b.reward * goldScale * cycleReward),
+      reward: Math.max(bossRewardRaw, bossRewardFloor),
       element: BOSS_ELEMENT[b.sprite] || 'dark',
       phases: getPhasesForSprite(b.sprite),
       phasesActive: [],

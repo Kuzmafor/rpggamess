@@ -170,6 +170,20 @@ export const BOOSTS = {
   dmg_mega:   { cost: 30, duration: 600,  label: 'Урон x3',     desc: '10 минут тройного урона',     mult: 3,    type: 'dmg' },
 }
 
+// Активный множитель буста заданного типа ('dmg' | 'gold') по индивидуальным
+// таймерам. Берём максимальный среди активных, чтобы x3 не «затирался» x2 и
+// наоборот. Если ни один не активен — возвращаем 1.
+export function activeBoostMult(boosts, kind, now = Date.now()) {
+  const active = boosts?.active || {}
+  let mult = 1
+  for (const id of Object.keys(active)) {
+    const def = BOOSTS[id]
+    if (!def || def.type !== kind) continue
+    if ((active[id] || 0) > now) mult = Math.max(mult, def.mult || 2)
+  }
+  return mult
+}
+
 export const CONVERTS = {
   gold:    { cost: 1, amount: 5000,  label: '5 000 золота',   icon: 'gold' },
   shards:  { cost: 1, amount: 2,     label: '2 осколка',       icon: 'artifact' },
@@ -348,6 +362,7 @@ const DEFAULT_STATE = {
     goldBoostUntil: 0,        // timestamp — х2 золото до ...
     speedBoostUntil: 0,       // timestamp — ускорение боя до ...
     speedBoostMult: 2,        // множитель скорости (по умолчанию x2)
+    active: {},               // индивидуальные таймеры по id буста: { [boostId]: untilTs }
   },
 
   // dps трекинг
@@ -549,6 +564,12 @@ export const useGameStore = create((set, get) => {
     if (typeof initial.profile.telegram === 'undefined') {
       initial.profile = { ...initial.profile, telegram: null }
     }
+  }
+  // бусты — гарантируем наличие индивидуальных таймеров (active)
+  if (!initial.boosts || typeof initial.boosts !== 'object') {
+    initial.boosts = { dmgBoostUntil: 0, goldBoostUntil: 0, speedBoostUntil: 0, speedBoostMult: 2, active: {} }
+  } else if (!initial.boosts.active || typeof initial.boosts.active !== 'object') {
+    initial.boosts = { ...initial.boosts, active: {} }
   }
   if (!initial.stats || typeof initial.stats !== 'object') {
     initial.stats = {
@@ -793,7 +814,7 @@ export const useGameStore = create((set, get) => {
         masteryDmg *
         gearDmg
       const superMult = s.superActive ? 2.5 : 1
-      const boost = s.boosts?.dmgBoostUntil > Date.now() ? (s.boosts?.dmgBoostMult || 2) : 1
+      const boost = activeBoostMult(s.boosts, 'dmg')
       const partyBoost = s.partyDmgBoostUntil > Date.now() ? 2 : 1
       return Math.max(1, Math.round(dmg * superMult * boost * partyBoost))
     },
@@ -804,7 +825,7 @@ export const useGameStore = create((set, get) => {
       const heroDmg = 1 + s.getBonuses().dmg
       const dmg = base * s.getWeaponMult() * heroDmg
       const superMult = s.superActive ? 5 : 1
-      const boost = s.boosts?.dmgBoostUntil > Date.now() ? (s.boosts?.dmgBoostMult || 2) : 1
+      const boost = activeBoostMult(s.boosts, 'dmg')
       return Math.max(1, Math.round(dmg * superMult * boost))
     },
 
@@ -912,8 +933,9 @@ export const useGameStore = create((set, get) => {
       const target = enemies[idx]
       if (!target) return
 
-      // ---- Боссовая блокировка по роли ----
-      if (target.isBoss && target.roleLock && meta?.role && meta.role !== target.roleLock) {
+      // ---- Боссовая блокировка по роли (временная) ----
+      if (target.isBoss && target.roleLock && (target.roleLockUntil || 0) > Date.now()
+          && meta?.role && meta.role !== target.roleLock) {
         // Урон полностью поглощён, фиксируем "0" и выходим
         return
       }
@@ -973,6 +995,9 @@ export const useGameStore = create((set, get) => {
               bossUpdate.enrage = true
             } else if (ph.type === 'roleLock') {
               bossUpdate.roleLock = ph.role
+              // Блокировка по роли теперь ВРЕМЕННАЯ: висит ~8 секунд и спадает,
+              // чтобы не превращаться в вечный «блок» до конца боя.
+              bossUpdate.roleLockUntil = Date.now() + 8000
             }
             // adds докинем в шеренгу после босса
             if (ph.type === 'summonAdds') {
@@ -1056,7 +1081,7 @@ export const useGameStore = create((set, get) => {
         }
         set({ codexKills: kills, codexKinds: kinds })
       }
-      const goldBoost = s.boosts?.goldBoostUntil > Date.now() ? (s.boosts?.goldBoostMult || 2) : 1
+      const goldBoost = activeBoostMult(s.boosts, 'gold')
       const goldGain = Math.ceil(target.reward * (1 + s.getBonuses().gold) * goldBoost)
       const remain = updated.filter((e) => e.hp > 0)
       const gemGain = target.isBoss ? 1 : 0
@@ -3631,22 +3656,36 @@ export const useGameStore = create((set, get) => {
       return { ok: true, reward }
     },
 
-    // Активация буста: type — ключ в BOOSTS.
-    activateBoost(type) {
+    // Активация буста: boostId — ключ в BOOSTS (dmg, gold, dmg_long, ...).
+    activateBoost(boostId) {
       const s = get()
-      const def = BOOSTS[type]
+      const def = BOOSTS[boostId]
       if (!def) return false
       if (s.gems < def.cost) return false
       const now = Date.now()
-      const target = def.type === 'dmg' ? 'dmgBoostUntil' : 'goldBoostUntil'
-      const cur = s.boosts?.[target] || 0
-      const newUntil = (cur > now ? cur : now) + def.duration * 1000
-      // мульт сохраняем как часть бустов, чтобы getTapDamage/getHeroAtk могли учесть x3
-      const multField = def.type === 'dmg' ? 'dmgBoostMult' : 'goldBoostMult'
-      set({
-        gems: s.gems - def.cost,
-        boosts: { ...s.boosts, [target]: newUntil, [multField]: def.mult || 2 },
-      })
+
+      // Индивидуальный таймер именно для этого буста (продлеваем, если активен).
+      const active = { ...(s.boosts?.active || {}) }
+      const cur = active[boostId] || 0
+      active[boostId] = (cur > now ? cur : now) + def.duration * 1000
+
+      // Пересчитываем агрегаты по типу из активных таймеров — чтобы
+      // getTapDamage/getHeroAtk/награда учитывали максимальный множитель.
+      const nextBoosts = { ...s.boosts, active }
+      const dmgMult = activeBoostMult(nextBoosts, 'dmg', now)
+      const goldMult = activeBoostMult(nextBoosts, 'gold', now)
+      // Самый поздний таймер среди активных бустов данного типа.
+      const latest = (kind) => Object.keys(active).reduce((mx, id) => {
+        const d = BOOSTS[id]
+        if (d && d.type === kind && active[id] > mx) return active[id]
+        return mx
+      }, 0)
+      nextBoosts.dmgBoostUntil = latest('dmg')
+      nextBoosts.goldBoostUntil = latest('gold')
+      nextBoosts.dmgBoostMult = dmgMult
+      nextBoosts.goldBoostMult = goldMult
+
+      set({ gems: s.gems - def.cost, boosts: nextBoosts })
       saveState(get())
       return true
     },
