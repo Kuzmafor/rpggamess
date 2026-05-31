@@ -87,3 +87,31 @@ export async function pushCloudSave(save, savedAt) {
 export function isLoggedIn() {
   return !!getToken()
 }
+
+// Таблица лидеров (топ-100). Доступна без входа.
+export async function fetchLeaderboard() {
+  try {
+    const r = await fetch(url('/api/leaderboard'))
+    if (!r.ok) return []
+    const data = await r.json()
+    return Array.isArray(data?.board) ? data.board : []
+  } catch {
+    return []
+  }
+}
+
+// Моя позиция в рейтинге (нужен вход). Возвращает объект или null.
+export async function fetchMyRank() {
+  const token = getToken()
+  if (!token) return null
+  try {
+    const r = await fetch(url('/api/leaderboard/me'), {
+      headers: { Authorization: 'Bearer ' + token },
+    })
+    if (!r.ok) return null
+    const data = await r.json()
+    return data?.me || null
+  } catch {
+    return null
+  }
+}

@@ -6,6 +6,7 @@ import ResourceInfoModal from './ResourceInfoModal.jsx'
 
 const ITEMS = [
   { id: 'profile',     icon: 'tabHeroes', label: 'Профиль',     desc: 'Статистика и промокоды' },
+  { id: 'leaderboard', icon: 'crown',     label: 'Рейтинг',     desc: 'Топ игроков по прогрессу' },
   { id: 'shop',        icon: 'shop',      label: 'Магазин',     desc: 'Сундуки, оружие, бусты, гемы' },
   { id: 'rewards',     icon: 'gift',      label: 'Награды',     desc: 'Событие, Battle Pass, календарь' },
   { id: 'inventory',   icon: 'gem',       label: 'Инвентарь',   desc: 'Ресурсы, материалы, премиум' },

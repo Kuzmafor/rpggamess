@@ -25,6 +25,7 @@ import ChallengesPanel from './components/ChallengesPanel.jsx'
 import ProgressionPanel from './components/ProgressionPanel.jsx'
 import RewardsPanel from './components/RewardsPanel.jsx'
 import CodexPanel from './components/CodexPanel.jsx'
+import LeaderboardPanel from './components/LeaderboardPanel.jsx'
 import CityPanel from './components/CityPanel.jsx'
 import PetsPanel from './components/PetsPanel.jsx'
 import Onboarding, { isOnboardingDone } from './components/Onboarding.jsx'
@@ -255,6 +256,7 @@ export default function App() {
       {overlay === 'battlepass' && <RewardsPanel initialTab="battlepass" onClose={() => setOverlay(null)} />}
       {overlay === 'rewards' && <RewardsPanel initialTab="event" onClose={() => setOverlay(null)} />}
       {overlay === 'codex' && <CodexPanel onClose={() => setOverlay(null)} />}
+      {overlay === 'leaderboard' && <LeaderboardPanel onClose={() => setOverlay(null)} />}
       {overlay === 'city' && <CityPanel onClose={() => setOverlay(null)} />}
       {overlay === 'shop' && <ShopPanel onClose={() => setOverlay(null)} />}
       {overlay === 'event' && <RewardsPanel initialTab="event" onClose={() => setOverlay(null)} />}

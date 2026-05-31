@@ -3,7 +3,7 @@ import path from 'path'
 import crypto from 'crypto'
 import { fileURLToPath } from 'url'
 import { verifyLoginWidget, verifyInitData } from './telegramAuth.js'
-import { hasDb, initDb, getSave, putSave } from './db.js'
+import { hasDb, initDb, getSave, putSave, getLeaderboard, getRank } from './db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
@@ -95,6 +95,27 @@ app.get('/api/save', requireAuth, async (req, res) => {
   }
 })
 
+// Считаем рейтинговый счёт из сейва. Прогресс измеряем по этапу, New Game+
+// и престижам — это устойчивые показатели общего продвижения игрока.
+function computeScore(save) {
+  if (!save || typeof save !== 'object') return { score: 0, maxStage: 1, prestige: 0, ngLevel: 0 }
+  const maxStage = Math.max(1, Math.floor(Number(save.maxStage || save.stage || 1)))
+  const ngLevel = Math.max(0, Math.floor(Number(save.ngLevel || 0)))
+  const prestige = Math.max(0, Math.floor(Number(save.prestigeCount || 0)))
+  // Каждый круг New Game+ и престиж весят как большой прогресс по этапам.
+  const score = maxStage + ngLevel * 100000 + prestige * 10000
+  return { score, maxStage, prestige, ngLevel }
+}
+
+function saveName(save) {
+  const p = save?.profile || {}
+  const tg = p.telegram || {}
+  return (p.nickname || tg.username || tg.firstName || 'Игрок').toString().slice(0, 48)
+}
+function savePhoto(save) {
+  return (save?.profile?.telegram?.photoUrl || '').toString().slice(0, 512)
+}
+
 // Сохранить облачный сейв. Применяем стратегию "новее по savedAt побеждает",
 // чтобы случайно не затереть более свежий прогресс с другого устройства.
 app.put('/api/save', requireAuth, async (req, res) => {
@@ -108,10 +129,35 @@ app.put('/api/save', requireAuth, async (req, res) => {
       // На сервере уже более свежий сейв — отдаём его, не перезаписывая.
       return res.json({ ok: false, conflict: true, save: existing.data, savedAt: existing.savedAt })
     }
-    await putSave(req.tgId, save, ts)
+    const meta = { ...computeScore(save), name: saveName(save), photoUrl: savePhoto(save) }
+    await putSave(req.tgId, save, ts, meta)
     res.json({ ok: true, savedAt: ts })
   } catch (e) {
     console.error('putSave error', e)
+    res.status(500).json({ error: 'server_error' })
+  }
+})
+
+// Таблица лидеров (топ игроков). Открыта без авторизации — только публичные поля.
+app.get('/api/leaderboard', async (_req, res) => {
+  if (!hasDb()) return res.json({ board: [] })
+  try {
+    const board = await getLeaderboard(100)
+    res.json({ board })
+  } catch (e) {
+    console.error('leaderboard error', e)
+    res.status(500).json({ error: 'server_error' })
+  }
+})
+
+// Позиция текущего игрока в рейтинге.
+app.get('/api/leaderboard/me', requireAuth, async (req, res) => {
+  if (!hasDb()) return res.json({ me: null })
+  try {
+    const me = await getRank(req.tgId)
+    res.json({ me })
+  } catch (e) {
+    console.error('rank error', e)
     res.status(500).json({ error: 'server_error' })
   }
 })
