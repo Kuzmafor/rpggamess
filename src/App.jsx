@@ -15,6 +15,7 @@ import SettingsPanel from './components/SettingsPanel.jsx'
 import SideMenu from './components/SideMenu.jsx'
 import Toasts from './components/Toasts.jsx'
 import LoadingScreen from './components/LoadingScreen.jsx'
+import IntroLogo from './components/IntroLogo.jsx'
 import DungeonHud from './components/DungeonHud.jsx'
 import RaidBattle from './components/RaidBattle.jsx'
 import ZonesMapPanel from './components/ZonesMapPanel.jsx'
@@ -80,6 +81,10 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [overlay, setOverlay] = useState(null)
   const [loading, setLoading] = useState(() => {
+    try { return !sessionStorage.getItem('bof.loaded') } catch { return true }
+  })
+  // Экран-приветствие с логотипом — показываем один раз за сессию, до splash.
+  const [intro, setIntro] = useState(() => {
     try { return !sessionStorage.getItem('bof.loaded') } catch { return true }
   })
   const [onbActive, setOnbActive] = useState(() => !isOnboardingDone())
@@ -304,6 +309,9 @@ export default function App() {
           setLoading(false)
         }} />
       )}
+
+      {/* Экран-приветствие поверх всего, показывается до splash */}
+      {intro && <IntroLogo onDone={() => setIntro(false)} />}
 
       {!loading && onbActive && (
         <Onboarding onClose={() => setOnbActive(false)} />
