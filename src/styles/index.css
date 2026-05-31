@@ -7777,3 +7777,77 @@ html, body { overflow: hidden; }
   font-weight: 800; font-size: 13px; color: var(--neon-2);
   white-space: nowrap;
 }
+
+
+/* ================================================
+   Окно новостей (с загрузочного экрана)
+   ================================================ */
+/* Кнопка "Новости" среди угловых ссылок */
+.ls-link-news {
+  cursor: pointer;
+  font: inherit;
+}
+
+.news-modal {
+  position: relative;
+  width: min(560px, 94vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 16px 8px;
+  background:
+    radial-gradient(600px 280px at 50% -20%, rgba(124,92,255,0.22), transparent 70%),
+    linear-gradient(180deg, rgba(10,12,36,0.97), rgba(6,8,26,0.99));
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+
+.news-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent);
+  padding-right: 44px;
+  margin-bottom: 12px;
+}
+.news-head-title { font-size: 18px; font-weight: 800; color: var(--text); }
+
+.news-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.news-item {
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--glass);
+  border: 1px solid var(--border);
+}
+.news-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.news-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: rgba(255,255,255,0.04);
+}
+.news-date { font-size: 11px; color: var(--text-dim); }
+.news-title { margin: 0 0 6px; font-size: 16px; font-weight: 800; color: var(--text); }
+.news-body { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+.news-para { margin: 0 0 8px; }
+.news-para:last-child { margin-bottom: 0; }
+.news-list { margin: 6px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.news-list li { list-style: disc; }

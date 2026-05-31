@@ -5,6 +5,7 @@ import { useGameStore } from '../store/useGameStore.js'
 import { isTelegram } from '../mobile/telegram.js'
 import { authTelegram, fetchCloudSave, pushCloudSave } from '../mobile/cloud.js'
 import TelegramLoginButton from './TelegramLoginButton.jsx'
+import NewsModal from './NewsModal.jsx'
 
 const TIPS = [
   'Тапайте по врагу для фокуса — герои добивают остальных.',
@@ -30,6 +31,7 @@ export default function LoadingScreen({ onDone }) {
   //   'closing' — тап получен, играем fade-out и зовём onDone
   const [state, setState] = useState('loading')
   const isClosing = state === 'closing'
+  const [newsOpen, setNewsOpen] = useState(false)
 
   const tgUser = useGameStore(s => s.profile?.telegram)
   const setTelegramProfile = useGameStore(s => s.setTelegramProfile)
@@ -109,6 +111,21 @@ export default function LoadingScreen({ onDone }) {
 
       {/* Кнопки соц-сетей */}
       <div className="ls-links" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="ls-link ls-link-news"
+          onClick={() => setNewsOpen(true)}
+          aria-label="Новости"
+          title="Новости"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+            <path
+              fill="currentColor"
+              d="M4 4h13a2 2 0 0 1 2 2v11a3 3 0 0 0 3 3H6a2 2 0 0 1-2-2V4Zm2 3v2h9V7H6Zm0 4v2h9v-2H6Zm0 4v2h6v-2H6Z"
+            />
+          </svg>
+          <span className="ls-link-tag">Новости</span>
+        </button>
         <a
           className="ls-link"
           href="https://t.me/bladeoffatebot"
@@ -219,6 +236,8 @@ export default function LoadingScreen({ onDone }) {
         <div key={tipIdx} className="ls-tip">{TIPS[tipIdx]}</div>
       </div>
       </div>
+
+      {newsOpen && <NewsModal onClose={() => setNewsOpen(false)} />}
     </div>
   )
 }
