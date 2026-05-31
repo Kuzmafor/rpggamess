@@ -4345,12 +4345,15 @@ export const useGameStore = create((set, get) => {
     },
 
     // Завершить попытку прыжков с результатом tiles (сколько плит пройдено).
+    // perfects — число «идеальных» приземлений (центр плиты), дают бонусную пыль.
     // Начисляет звёздную пыль + золото (с масштабом). Обновляет лучший результат.
-    eventFinishJump(tiles = 0) {
+    eventFinishJump(tiles = 0, perfects = 0) {
       const s = get()
       const ev = s._ensureEvent()
       const t = Math.max(0, Math.floor(tiles))
-      const tokens = t * JUMP_TOKENS_PER_TILE
+      const pf = Math.max(0, Math.floor(perfects))
+      // Базовая пыль за плиты + бонус за идеальные приземления (ещё столько же за каждое).
+      const tokens = t * JUMP_TOKENS_PER_TILE + pf * JUMP_TOKENS_PER_TILE
       const scale = rewardScale({ stage: s.stage, maxStage: s.maxStage, ngLevel: s.ngLevel })
       const gold = Math.floor(t * JUMP_GOLD_PER_TILE * scale)
       const best = Math.max(ev.jump?.best || 0, t)
@@ -4367,7 +4370,7 @@ export const useGameStore = create((set, get) => {
       get()._bumpGoldEarned(gold)
       get().addBpXp(20 + t * 2)
       saveState(get())
-      return { ok: true, tiles: t, tokens, gold, best, newBest: t >= best }
+      return { ok: true, tiles: t, perfects: pf, tokens, gold, best, newBest: t >= best }
     },
 
     // Сколько бесплатных прокруток автомата осталось сегодня.

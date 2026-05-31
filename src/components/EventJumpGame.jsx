@@ -5,55 +5,45 @@ import { JUMP_TOKENS_PER_TILE } from '../data/event.js'
 import { impact } from '../mobile/index.js'
 
 // ============================================================
-// Мини-игра «Прыжки по руинам».
-// Механика: герой стоит на парящей плите. ЗАЖМИ экран — копится сила прыжка
-// (полоска растёт). ОТПУСТИ — герой прыгает вперёд на дистанцию, пропорциональную
-// заряду. Нужно «на глаз» рассчитать силу так, чтобы приземлиться на следующую
-// плиту, а не в пропасть. Каждая пройденная плита = звёздная пыль.
+// Мини-игра «Мост по руинам» (редизайн).
+// Механика «моста»: герой стоит на краю парящей плиты. ЗАЖМИ экран — из края
+// растёт каменный мост. ОТПУСТИ — мост падает вперёд. Если конец моста попал
+// на следующую плиту — герой переходит по нему. Перелёт/недолёт — падение.
+// Попал точно в центральную руну плиты — «идеально» (двойная пыль).
+// Каждая пройденная плита = звёздная пыль. Идеальные приземления — бонус.
 // ============================================================
 
-// Игровые константы (в "мировых" единицах = px по ширине поля 100%).
-const FIELD_W = 360          // логическая ширина поля
-const FIELD_H = 340          // логическая высота поля
-const GROUND_Y = 232         // верх плиты (по Y)
-const HERO_W = 26
-const HERO_H = 34
-const CHARGE_RATE = 150      // ед. дистанции в секунду заряда
-const MAX_CHARGE = 230       // максимум дистанции прыжка
-const MIN_CHARGE = 30
-const JUMP_DURATION = 620    // мс полёта
-const ARC_H = 96             // высота дуги прыжка
-const PLATFORM_H = 22
+const FIELD_W = 360
+const FIELD_H = 440
+const DECK_Y = 250          // верхняя поверхность плит (по Y)
+const HERO_W = 24
+const HERO_H = 32
+const GROW_RATE = 175       // скорость роста моста (px/сек)
+const MAX_BRIDGE = 360      // максимальная длина моста
+const FALL_DUR = 280        // мс падения моста
+const WALK_SPEED = 150      // px/сек ходьбы героя по мосту
+const PERFECT_HALF = 9      //半 ширина зоны "идеально" (px)
 
-// Декор фона в мировых координатах (генерится один раз). Звёзды + дальние острова.
+// Параллакс-звёзды фона (генерится один раз).
 const BG_STARS = (() => {
   const arr = []
   let seed = 99173
   const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280 }
-  for (let i = 0; i < 90; i++) {
-    arr.push([Math.round(rnd() * 3200), Math.round(rnd() * 200 + 8), +(rnd() * 1.3 + 0.5).toFixed(1), +(rnd() * 0.6 + 0.3).toFixed(2)])
-  }
-  return arr
-})()
-const FAR_ISLANDS = (() => {
-  const arr = []
-  let seed = 4242
-  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280 }
-  for (let i = 0; i < 14; i++) {
-    arr.push({ x: Math.round(i * 240 + rnd() * 120), y: Math.round(150 + rnd() * 70), s: +(0.5 + rnd() * 0.7).toFixed(2) })
+  for (let i = 0; i < 70; i++) {
+    arr.push([Math.round(rnd() * 1600), Math.round(rnd() * 230 + 8), +(rnd() * 1.4 + 0.5).toFixed(1), +(rnd() * 0.6 + 0.3).toFixed(2)])
   }
   return arr
 })()
 
-// Генерация следующей плиты: чем дальше, тем уже и дальше (сложнее).
+// Генерация следующей плиты: с прогрессом дальше и уже.
 function nextPlatform(prev, index) {
-  const diff = Math.min(1, index / 18)
-  const minGap = 70 + diff * 50
-  const maxGap = 120 + diff * 70
+  const diff = Math.min(1, index / 20)
+  const minGap = 64 + diff * 60
+  const maxGap = 120 + diff * 80
   const gap = minGap + Math.random() * (maxGap - minGap)
-  const minW = 70 - diff * 34
-  const maxW = 110 - diff * 40
-  const w = Math.max(34, minW + Math.random() * (maxW - minW))
+  const minW = 64 - diff * 30
+  const maxW = 104 - diff * 40
+  const w = Math.max(32, minW + Math.random() * (maxW - minW))
   return { x: prev.x + prev.w + gap, w }
 }
 
@@ -63,54 +53,51 @@ export default function EventJumpGame({ onExit }) {
   const startJump = useGameStore(s => s.eventStartJump)
   const finishJump = useGameStore(s => s.eventFinishJump)
 
-  // phase: idle | playing | result
-  const [phase, setPhase] = useState('idle')
+  const [phase, setPhase] = useState('idle')   // idle | playing | result
   const [tiles, setTiles] = useState(0)
+  const [perfects, setPerfects] = useState(0)
   const [result, setResult] = useState(null)
-
-  // визуальные значения (для рендера) держим в state, физику — в ref
-  const [chargePct, setChargePct] = useState(0)
+  const [flash, setFlash] = useState(false)     // вспышка "Идеально!"
   const [, force] = useState(0)
   const rerender = useCallback(() => force(n => n + 1), [])
 
-  const game = useRef(null)   // мутабельное игровое состояние
+  const game = useRef(null)
   const raf = useRef(0)
 
-  // Инициализация новой попытки
   const begin = useCallback(() => {
     const r = startJump()
     if (!r.ok) return
-    const p0 = { x: 30, w: 90 }
+    const p0 = { x: 20, w: 84 }
     const p1 = nextPlatform(p0, 1)
     game.current = {
       platforms: [p0, p1],
-      heroX: p0.x + p0.w / 2 - HERO_W / 2, // центр на первой плите
       curIndex: 0,
+      heroX: p0.x + p0.w - 12 - HERO_W,  // герой у правого края плиты
       camX: 0,
-      charging: false,
-      charge: 0,
-      jumping: false,
-      jumpT: 0,
-      jumpFrom: 0,
-      jumpDist: 0,
-      heroY: 0,        // смещение вверх во время прыжка
-      falling: false,
-      fallV: 0,
+      // мост
+      bridgeLen: 0,
+      growing: false,
+      state: 'ready',   // ready | growing | falling | walking | turning | dead
+      fallT: 0,
+      walkDone: 0,
+      // результат текущего перехода
+      pendingLanded: -1,
+      pendingPerfect: false,
+      fellX: 0,         // куда падать если промах
       tiles: 0,
+      perfects: 0,
+      heroFallY: 0,
       lastTime: performance.now(),
       ended: false,
     }
-    setTiles(0)
-    setChargePct(0)
-    setResult(null)
+    setTiles(0); setPerfects(0); setResult(null); setFlash(false)
     setPhase('playing')
   }, [startJump])
 
-  // Завершение попытки
-  const end = useCallback((finalTiles) => {
-    if (game.current) game.current.ended = true
+  const end = useCallback((g) => {
+    if (g) g.ended = true
     cancelAnimationFrame(raf.current)
-    const r = finishJump(finalTiles)
+    const r = finishJump(g?.tiles || 0, g?.perfects || 0)
     setResult(r)
     setPhase('result')
   }, [finishJump])
@@ -123,62 +110,90 @@ export default function EventJumpGame({ onExit }) {
       if (!g || g.ended) return
       const dt = Math.min(48, now - g.lastTime)
       g.lastTime = now
+      const ds = dt / 1000
 
-      // заряд
-      if (g.charging && !g.jumping && !g.falling) {
-        g.charge = Math.min(MAX_CHARGE, g.charge + CHARGE_RATE * (dt / 1000))
-        setChargePct(Math.round((g.charge / MAX_CHARGE) * 100))
+      const curEnd = g.platforms[g.curIndex].x + g.platforms[g.curIndex].w
+      const bridgeBaseX = curEnd  // мост растёт от правого края текущей плиты
+
+      if (g.state === 'growing') {
+        g.bridgeLen = Math.min(MAX_BRIDGE, g.bridgeLen + GROW_RATE * ds)
       }
 
-      // полёт
-      if (g.jumping) {
-        g.jumpT += dt
-        const t = Math.min(1, g.jumpT / JUMP_DURATION)
-        g.heroX = g.jumpFrom + g.jumpDist * t
-        g.heroY = Math.sin(t * Math.PI) * ARC_H   // высота дуги
-        if (t >= 1) {
-          g.jumping = false
-          g.heroY = 0
-          // проверка приземления
-          const cx = g.heroX + HERO_W / 2
-          let landed = -1
-          for (let i = 0; i < g.platforms.length; i++) {
-            const p = g.platforms[i]
-            if (cx >= p.x && cx <= p.x + p.w) { landed = i; break }
+      if (g.state === 'falling') {
+        g.fallT += dt
+        // мост поворачивается на 90° — визуально через bridgeAngle
+        if (g.fallT >= FALL_DUR) {
+          g.state = 'walking'
+          g.walkDone = 0
+          // вычислить точку конца моста и проверить попадание
+          const tipX = bridgeBaseX + g.bridgeLen
+          const next = g.platforms[g.curIndex + 1]
+          if (next && tipX >= next.x && tipX <= next.x + next.w) {
+            g.pendingLanded = g.curIndex + 1
+            const center = next.x + next.w / 2
+            g.pendingPerfect = Math.abs(tipX - center) <= PERFECT_HALF
+          } else {
+            g.pendingLanded = -1
+            g.pendingPerfect = false
+            g.fellX = tipX
           }
-          if (landed > g.curIndex) {
-            // успех — встали на новую плиту
-            g.curIndex = landed
+        }
+      }
+
+      if (g.state === 'walking') {
+        g.walkDone += WALK_SPEED * ds
+        const targetX = g.pendingLanded >= 0
+          ? (g.platforms[g.pendingLanded].x + g.platforms[g.pendingLanded].w / 2 - HERO_W / 2)
+          : (g.fellX - HERO_W / 2)            // дошёл до конца моста (в пустоту)
+        const startX = g.platforms[g.curIndex].x + g.platforms[g.curIndex].w - 12 - HERO_W
+        const dist = targetX - startX
+        const walked = Math.min(Math.abs(dist), g.walkDone)
+        g.heroX = startX + Math.sign(dist) * walked
+        if (g.walkDone >= Math.abs(dist)) {
+          if (g.pendingLanded >= 0) {
+            // успех
+            g.curIndex = g.pendingLanded
             g.tiles += 1
             setTiles(g.tiles)
-            impact('light')
-            // подготовим ещё одну плиту вперёд
+            if (g.pendingPerfect) {
+              g.perfects += 1
+              setPerfects(g.perfects)
+              setFlash(true)
+              setTimeout(() => setFlash(false), 650)
+              impact('medium')
+            } else {
+              impact('light')
+            }
+            // готовим следующие плиты
             while (g.platforms.length < g.curIndex + 3) {
               g.platforms.push(nextPlatform(g.platforms[g.platforms.length - 1], g.platforms.length))
             }
-          } else if (landed === g.curIndex) {
-            // приземлился на ту же плиту (недопрыг по центру) — это ок, не падаем
+            g.bridgeLen = 0
+            g.state = 'turning'
+            g.turnT = 0
           } else {
-            // мимо — падение
-            g.falling = true
-            g.fallV = 0
+            // промах — падаем с конца моста
+            g.state = 'dead'
+            g.heroFallY = 0
           }
         }
       }
 
-      // падение в пропасть
-      if (g.falling) {
-        g.fallV += 0.9 * dt
-        g.heroY -= g.fallV * (dt / 16)   // heroY отрицательный = вниз
-        if (g.heroY < -FIELD_H) {
-          end(g.tiles)
-          return
-        }
+      if (g.state === 'turning') {
+        // плавный доводчик камеры к новой плите, затем готовность
+        g.turnT = (g.turnT || 0) + dt
+        if (g.turnT > 180) g.state = 'ready'
       }
 
-      // камера: держим героя в левой трети
-      const targetCam = Math.max(0, g.heroX - FIELD_W * 0.32)
-      g.camX += (targetCam - g.camX) * Math.min(1, dt / 120)
+      if (g.state === 'dead') {
+        g.heroFallY += (200 + g.heroFallY * 3) * ds
+        if (g.heroFallY > FIELD_H) { end(g); return }
+      }
+
+      // камера: текущая плита у левой трети
+      const focus = g.platforms[g.curIndex].x
+      const targetCam = Math.max(0, focus - FIELD_W * 0.22)
+      g.camX += (targetCam - g.camX) * Math.min(1, dt / 140)
 
       rerender()
       raf.current = requestAnimationFrame(loop)
@@ -190,30 +205,23 @@ export default function EventJumpGame({ onExit }) {
     return () => cancelAnimationFrame(raf.current)
   }, [phase, end, rerender])
 
-  // Управление: pointer down/up на поле
   const onDown = useCallback((e) => {
     e.preventDefault()
     const g = game.current
-    if (!g || g.jumping || g.falling || g.ended) return
-    g.charging = true
-    g.charge = MIN_CHARGE
-    setChargePct(Math.round((MIN_CHARGE / MAX_CHARGE) * 100))
+    if (!g || g.state !== 'ready' || g.ended) return
+    g.state = 'growing'
+    g.bridgeLen = 0
   }, [])
 
   const onUp = useCallback((e) => {
     e?.preventDefault?.()
     const g = game.current
-    if (!g || !g.charging || g.jumping || g.falling || g.ended) return
-    g.charging = false
-    g.jumping = true
-    g.jumpT = 0
-    g.jumpFrom = g.heroX
-    g.jumpDist = g.charge
-    setChargePct(0)
+    if (!g || g.state !== 'growing' || g.ended) return
+    g.state = 'falling'
+    g.fallT = 0
     impact('light')
   }, [])
 
-  // cleanup
   useEffect(() => () => cancelAnimationFrame(raf.current), [])
 
   const g = game.current
@@ -223,10 +231,11 @@ export default function EventJumpGame({ onExit }) {
       {phase === 'idle' && (
         <div className="ev-jump-intro">
           <div className="ev-jump-illu"><Icon name="bolt" size={40} /></div>
-          <h3>Прыжки по руинам</h3>
+          <h3>Мост по руинам</h3>
           <p className="ev-hint">
-            Зажми поле — копится <b>сила прыжка</b>. Отпусти — герой прыгнет вперёд.
-            Рассчитай силу так, чтобы приземлиться на плиту, а не в пропасть.
+            Зажми поле — из края плиты растёт <b>каменный мост</b>. Отпусти — мост
+            упадёт вперёд. Дотянись точно до следующей плиты, а попадёшь в её
+            центр — получишь <b>двойную пыль</b> за идеальный переход.
           </p>
           <div className="ev-jump-stat">
             <span><Icon name="star" size={14} /> +{JUMP_TOKENS_PER_TILE} пыли за плиту</span>
@@ -249,27 +258,35 @@ export default function EventJumpGame({ onExit }) {
         >
           <div className="ev-jump-hud">
             <span className="ev-jump-tiles"><Icon name="star" size={14} /> {tiles}</span>
+            {perfects > 0 && <span className="ev-jump-perfect">★ {perfects}</span>}
             <span className="ev-jump-tip">Зажми и отпусти</span>
           </div>
 
-          <svg viewBox={`0 0 ${FIELD_W} ${FIELD_H}`} width="100%" height="100%" className="ev-jump-svg">
+          {flash && <div className="ev-jump-flash">ИДЕАЛЬНО!</div>}
+
+          <svg viewBox={`0 0 ${FIELD_W} ${FIELD_H}`} width="100%" height="100%" className="ev-jump-svg" preserveAspectRatio="xMidYMid slice">
             <defs>
-              <radialGradient id="jgGlow" cx="50%" cy="30%" r="60%">
-                <stop offset="0%" stopColor="#7c5cff" stopOpacity="0.5" />
-                <stop offset="100%" stopColor="#7c5cff" stopOpacity="0" />
-              </radialGradient>
-              <radialGradient id="jgMoon" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="#fff7e0" />
-                <stop offset="70%" stopColor="#ffe2a8" />
-                <stop offset="100%" stopColor="#ffcf6e" stopOpacity="0.15" />
-              </radialGradient>
-              <linearGradient id="jgPlat" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#8a6cff" />
-                <stop offset="100%" stopColor="#3a2a66" />
+              <linearGradient id="jgSky" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#1a1346" />
+                <stop offset="55%" stopColor="#2a1f5e" />
+                <stop offset="100%" stopColor="#4a2d6e" />
               </linearGradient>
-              <linearGradient id="jgPlatCur" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#9af5ff" />
-                <stop offset="100%" stopColor="#4a8ad0" />
+              <radialGradient id="jgSun" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#fff3c8" />
+                <stop offset="55%" stopColor="#ffcf6e" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="#ff9a3a" stopOpacity="0" />
+              </radialGradient>
+              <linearGradient id="jgDeck" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#7e63d6" />
+                <stop offset="100%" stopColor="#4a3a8a" />
+              </linearGradient>
+              <linearGradient id="jgDeckCur" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#7ef0ff" />
+                <stop offset="100%" stopColor="#3a8ad0" />
+              </linearGradient>
+              <linearGradient id="jgBridge" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ffd27a" />
+                <stop offset="100%" stopColor="#b9762a" />
               </linearGradient>
               <linearGradient id="jgHero" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#9af5ff" />
@@ -277,109 +294,95 @@ export default function EventJumpGame({ onExit }) {
               </linearGradient>
             </defs>
 
-            {/* фон внутри поля — НЕ скроллится (параллакс): луна, туманность */}
-            <rect x="0" y="0" width={FIELD_W} height={FIELD_H} fill="url(#jgGlow)" opacity="0.7" />
-            <circle cx="300" cy="58" r="30" fill="url(#jgMoon)" />
-            <circle cx="300" cy="58" r="20" fill="#fff7e0" opacity="0.9" />
-            <ellipse cx="90" cy="80" rx="120" ry="40" fill="#a072ff" opacity="0.1" />
-            <ellipse cx="260" cy="150" rx="150" ry="55" fill="#67d6ff" opacity="0.07" />
+            {/* небо */}
+            <rect x="0" y="0" width={FIELD_W} height={FIELD_H} fill="url(#jgSky)" />
+            {/* большое солнце-портал внизу */}
+            <circle cx={FIELD_W / 2} cy={FIELD_H - 20} r="120" fill="url(#jgSun)" />
+            <circle cx={FIELD_W / 2} cy={FIELD_H - 20} r="58" fill="#fff3c8" opacity="0.9" />
 
-            {/* медленный параллакс-слой звёзд и дальних островов */}
-            <g transform={`translate(${-((g?.camX || 0) * 0.25)},0)`}>
+            {/* параллакс-звёзды */}
+            <g transform={`translate(${-((g?.camX || 0) * 0.2)},0)`}>
               {BG_STARS.map((s, i) => (
-                <circle key={i} cx={s[0] % 1600} cy={s[1]} r={s[2]} fill="#fff" opacity={s[3]} />
-              ))}
-              {FAR_ISLANDS.map((fi, i) => (
-                <g key={i} transform={`translate(${fi.x % 1600}, ${fi.y}) scale(${fi.s})`} opacity="0.35">
-                  <path d="M0 0 L18 -14 L46 -14 L64 0 L44 24 L20 24 Z" fill="#2a1f4e" />
-                </g>
+                <circle key={i} cx={s[0] % 1500} cy={s[1]} r={s[2]} fill="#fff" opacity={s[3]} />
               ))}
             </g>
 
+            {/* игровой слой со скроллом камеры */}
             <g transform={`translate(${-(g?.camX || 0)},0)`}>
-              {/* траектория-подсказка во время заряда */}
-              {g && g.charging && !g.jumping && (() => {
-                const dots = []
-                const fromX = g.heroX + HERO_W / 2
-                const fromY = GROUND_Y - HERO_H / 2 - (g.heroY || 0)
-                for (let k = 1; k <= 7; k++) {
-                  const tt = k / 8
-                  const dx = fromX + g.charge * tt
-                  const dy = fromY - Math.sin(tt * Math.PI) * ARC_H
-                  dots.push(<circle key={k} cx={dx} cy={dy} r={2.4 - k * 0.12} fill="#9af5ff" opacity={0.85 - k * 0.08} />)
-                }
-                // отметка точки приземления
-                const landX = fromX + g.charge
-                dots.push(<g key="land"><circle cx={landX} cy={GROUND_Y - 2} r="6" fill="none" stroke="#ffd166" strokeWidth="1.6" opacity="0.8" /><circle cx={landX} cy={GROUND_Y - 2} r="2" fill="#ffd166" /></g>)
-                return dots
-              })()}
-
               {/* плиты */}
               {(g?.platforms || []).map((p, i) => {
                 const isCur = i === g.curIndex
+                const cx = p.x + p.w / 2
                 return (
                   <g key={i}>
-                    {/* свечение под текущей плитой */}
-                    {isCur && <ellipse cx={p.x + p.w / 2} cy={GROUND_Y + PLATFORM_H} rx={p.w / 1.6} ry="16" fill="#67d6ff" opacity="0.25" />}
-                    {/* парящий низ (объём) */}
-                    <path d={`M${p.x} ${GROUND_Y + PLATFORM_H} L${p.x + p.w} ${GROUND_Y + PLATFORM_H} L${p.x + p.w - 14} ${GROUND_Y + PLATFORM_H + 26} L${p.x + 14} ${GROUND_Y + PLATFORM_H + 26} Z`}
-                          fill="#1a1038" stroke="#0a0820" strokeWidth="1.5" />
+                    {isCur && <ellipse cx={cx} cy={DECK_Y + 6} rx={p.w / 1.5} ry="14" fill="#7ef0ff" opacity="0.22" />}
+                    {/* парящее основание */}
+                    <path d={`M${p.x} ${DECK_Y + 18} L${p.x + p.w} ${DECK_Y + 18} L${p.x + p.w - 16} ${DECK_Y + 18 + 70} L${p.x + 16} ${DECK_Y + 18 + 70} Z`}
+                          fill="#171034" stroke="#0c0822" strokeWidth="1.5" />
                     {/* свисающие кристаллы */}
-                    <path d={`M${p.x + p.w * 0.3} ${GROUND_Y + PLATFORM_H + 22} l-4 14 l4 4 l4 -4 Z`} fill="#7c5cff" opacity="0.8" />
-                    <path d={`M${p.x + p.w * 0.7} ${GROUND_Y + PLATFORM_H + 18} l-3 10 l3 3 l3 -3 Z`} fill="#a072ff" opacity="0.7" />
-                    {/* верхняя плита */}
-                    <rect x={p.x} y={GROUND_Y} width={p.w} height={PLATFORM_H} rx="6"
-                          fill={isCur ? 'url(#jgPlatCur)' : 'url(#jgPlat)'} stroke="#1a0f3a" strokeWidth="2" />
-                    <rect x={p.x + 2} y={GROUND_Y + 1} width={p.w - 4} height="5" rx="3" fill="#fff" opacity="0.4" />
-                    {/* руны на плите */}
-                    <circle cx={p.x + p.w / 2} cy={GROUND_Y + 13} r="2.6" fill="#ffd166" opacity="0.9">
-                      {isCur && <animate attributeName="opacity" values="0.5;1;0.5" dur="1.4s" repeatCount="indefinite" />}
+                    <path d={`M${p.x + p.w * 0.32} ${DECK_Y + 84} l-4 16 l4 5 l4 -5 Z`} fill="#7c5cff" opacity="0.8" />
+                    <path d={`M${p.x + p.w * 0.68} ${DECK_Y + 80} l-3 12 l3 4 l3 -4 Z`} fill="#a072ff" opacity="0.7" />
+                    {/* верхняя поверхность */}
+                    <rect x={p.x} y={DECK_Y} width={p.w} height="18" rx="5"
+                          fill={isCur ? 'url(#jgDeckCur)' : 'url(#jgDeck)'} stroke="#160d36" strokeWidth="2" />
+                    <rect x={p.x + 2} y={DECK_Y + 1} width={p.w - 4} height="4" rx="2" fill="#fff" opacity="0.35" />
+                    {/* центральная руна-цель (зона "идеально") */}
+                    <circle cx={cx} cy={DECK_Y + 9} r="3" fill="#ffd166" opacity="0.95">
+                      <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
                     </circle>
-                    <path d={`M${p.x + p.w / 2 - 8} ${GROUND_Y + 13} h16`} stroke="#ffd166" strokeWidth="1" opacity="0.35" />
+                    <rect x={cx - PERFECT_HALF} y={DECK_Y} width={PERFECT_HALF * 2} height="18" rx="3"
+                          fill="none" stroke="#ffd166" strokeWidth="0.8" opacity="0.35" />
                   </g>
                 )
               })}
 
+              {/* мост */}
+              {g && (() => {
+                const cur = g.platforms[g.curIndex]
+                const baseX = cur.x + cur.w
+                const baseY = DECK_Y
+                let angle = 0
+                if (g.state === 'falling') angle = Math.min(90, (g.fallT / FALL_DUR) * 90)
+                else if (g.state === 'growing' || g.state === 'ready') angle = 0
+                else angle = 90
+                if (g.bridgeLen <= 0) return null
+                // мост рисуем как вертикальный (растёт вверх), затем поворачиваем
+                return (
+                  <g transform={`translate(${baseX}, ${baseY}) rotate(${angle - 90})`} style={{ transformOrigin: '0 0' }}>
+                    {/* при angle=0 (growing) — торчит вверх; angle=90 — лежит вправо */}
+                    <rect x="0" y="-5" width={g.bridgeLen} height="9" rx="2" fill="url(#jgBridge)" stroke="#5a3a12" strokeWidth="1.5" />
+                    <rect x="0" y="-5" width={g.bridgeLen} height="3" rx="1.5" fill="#fff" opacity="0.3" />
+                  </g>
+                )
+              })()}
+
               {/* герой */}
               {g && (() => {
-                const inAir = g.jumping || g.falling
+                const dead = g.state === 'dead'
                 const cx = g.heroX + HERO_W / 2
-                const topY = GROUND_Y - HERO_H - (g.heroY || 0)
-                const squash = g.charging ? 0.84 : 1   // приседание при заряде
+                const topY = DECK_Y - HERO_H + (dead ? g.heroFallY : 0)
+                const charging = g.state === 'growing'
+                const squash = charging ? 0.9 : 1
                 return (
                   <g>
-                    {/* тень на плите */}
-                    <ellipse cx={cx} cy={GROUND_Y + 4} rx={HERO_W / 2 * (inAir ? 0.6 : 1)} ry="4"
-                             fill="#000" opacity={inAir ? 0.1 : 0.3} />
-                    {/* аура заряда */}
-                    {g.charging && (
-                      <circle cx={cx} cy={topY + HERO_H / 2} r={18 + (chargePct / 100) * 14} fill="url(#jgGlow)" opacity="0.7">
-                        <animate attributeName="opacity" values="0.4;0.8;0.4" dur="0.5s" repeatCount="indefinite" />
-                      </circle>
-                    )}
+                    {!dead && <ellipse cx={cx} cy={DECK_Y + 2} rx={HERO_W / 2} ry="3.5" fill="#000" opacity="0.3" />}
                     <g transform={`translate(${g.heroX}, ${topY}) scale(1, ${squash})`} style={{ transformOrigin: 'center bottom' }}>
-                      <rect x="2" y="6" width={HERO_W - 4} height={HERO_H - 10} rx="7"
+                      <rect x="2" y="6" width={HERO_W - 4} height={HERO_H - 10} rx="6"
                             fill="url(#jgHero)" stroke="#1a5a9a" strokeWidth="2" />
-                      <circle cx={HERO_W / 2} cy="6" r="7" fill="#ffe2a8" stroke="#7a4f0a" strokeWidth="1.5" />
-                      {/* глаза-искорки */}
-                      <circle cx={HERO_W / 2 - 2.4} cy="5.5" r="1" fill="#3a2a66" />
-                      <circle cx={HERO_W / 2 + 2.4} cy="5.5" r="1" fill="#3a2a66" />
-                      {/* плащ-огонёк */}
-                      <path d={`M2 10 Q${inAir ? -8 : -4} ${g.charging ? 28 : 18} 4 ${HERO_H - 4}`} fill="none" stroke="#ff7a2a" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
+                      <circle cx={HERO_W / 2} cy="6" r="6.5" fill="#ffe2a8" stroke="#7a4f0a" strokeWidth="1.5" />
+                      <circle cx={HERO_W / 2 - 2.2} cy="5.5" r="1" fill="#3a2a66" />
+                      <circle cx={HERO_W / 2 + 2.2} cy="5.5" r="1" fill="#3a2a66" />
+                      <path d={`M2 10 Q-4 ${charging ? 26 : 18} 4 ${HERO_H - 4}`} fill="none" stroke="#ff7a2a" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
                     </g>
-                    {/* искры в полёте */}
-                    {inAir && [0, 1, 2].map(k => (
-                      <circle key={k} cx={cx - 6 - k * 5} cy={topY + HERO_H - k * 4} r={1.6 - k * 0.4} fill="#9af5ff" opacity={0.7 - k * 0.2} />
-                    ))}
                   </g>
                 )
               })()}
             </g>
           </svg>
 
-          {/* индикатор заряда */}
+          {/* индикатор силы (для наглядности роста моста) */}
           <div className="ev-charge">
-            <div className="ev-charge-fill" style={{ width: chargePct + '%' }} />
+            <div className="ev-charge-fill" style={{ width: (g ? Math.round((g.bridgeLen / MAX_BRIDGE) * 100) : 0) + '%' }} />
           </div>
         </div>
       )}
@@ -389,6 +392,7 @@ export default function EventJumpGame({ onExit }) {
           <div className={'ev-result-burst' + (result.tiles > 0 ? ' win' : '')} />
           <h3>{result.tiles > 0 ? 'Отличный забег!' : 'Сорвался в пропасть'}</h3>
           <div className="ev-result-big">{result.tiles}<span> плит</span></div>
+          {result.perfects > 0 && <div className="ev-result-perfect">★ Идеальных: {result.perfects}</div>}
           {result.newBest && result.tiles > 0 && <div className="ev-result-best">Новый рекорд!</div>}
           <div className="ev-result-rewards">
             <div className="srew shards">

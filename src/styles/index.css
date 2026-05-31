@@ -7267,7 +7267,7 @@ html, body { overflow: hidden; }
 .ev-jump-field {
   position: relative;
   width: 100%;
-  aspect-ratio: 360 / 340;
+  aspect-ratio: 360 / 440;
   border-radius: var(--radius);
   overflow: hidden;
   background:
@@ -7291,6 +7291,28 @@ html, body { overflow: hidden; }
   background: rgba(0,0,0,0.4); padding: 3px 10px; border-radius: 999px;
 }
 .ev-jump-tip { font-size: 11px; color: var(--text-dim); background: rgba(0,0,0,0.3); padding: 3px 8px; border-radius: 999px; }
+.ev-jump-perfect {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-weight: 900; font-size: 14px; color: #ffd166;
+  background: rgba(0,0,0,0.4); padding: 3px 10px; border-radius: 999px;
+  text-shadow: 0 0 8px rgba(255,209,102,0.6);
+}
+/* Вспышка "Идеально!" по центру поля */
+.ev-jump-flash {
+  position: absolute; left: 0; right: 0; top: 38%; z-index: 4;
+  text-align: center; pointer-events: none;
+  font-size: 28px; font-weight: 900; letter-spacing: 0.04em;
+  color: #ffd166;
+  text-shadow: 0 0 16px rgba(255,209,102,0.8), 0 2px 4px rgba(0,0,0,0.6);
+  animation: ev-flash-pop 0.65s ease-out forwards;
+}
+@keyframes ev-flash-pop {
+  0%   { opacity: 0; transform: scale(0.6) translateY(10px); }
+  30%  { opacity: 1; transform: scale(1.1) translateY(0); }
+  70%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1) translateY(-14px); }
+}
+.ev-result-perfect { margin: 4px 0; color: #ffd166; font-weight: 800; font-size: 13px; text-shadow: 0 0 8px rgba(255,209,102,0.4); }
 .ev-charge {
   position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 3;
   height: 12px; border-radius: 999px; overflow: hidden;
