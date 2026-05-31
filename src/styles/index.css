@@ -7725,6 +7725,7 @@ html, body { overflow: hidden; }
   border: 1px solid rgba(255,209,102,0.4);
 }
 .lb-me-rank { font-weight: 900; font-size: 18px; color: var(--accent); min-width: 44px; }
+.lb-me-ava { width: 40px; height: 40px; flex: 0 0 40px; }
 .lb-me-meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .lb-me-name { font-weight: 800; font-size: 14px; }
 .lb-me-sub { font-size: 11px; color: var(--text-dim); }

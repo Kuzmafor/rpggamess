@@ -2,18 +2,32 @@ import React, { useEffect, useState } from 'react'
 import { useGameStore } from '../store/useGameStore.js'
 import { fmt } from '../utils/fmt.js'
 import { Icon } from '../assets/Icon.jsx'
-import { isLoggedIn, fetchLeaderboard, fetchMyRank } from '../mobile/cloud.js'
+import { fetchLeaderboard, fetchMyRank } from '../mobile/cloud.js'
 
 // Раздел "Рейтинг": общий топ игроков по прогрессу.
-// Чтобы попасть в рейтинг, нужно войти через Telegram — тогда прогресс
-// синхронизируется с сервером и учитывается в таблице лидеров.
+// Игрок, вошедший через Telegram, всегда видит свою карточку прогресса —
+// даже если серверный рейтинг ещё не подсчитан или сервер недоступен.
+
+// Тот же расчёт очков, что и на сервере (server/index.js: computeScore),
+// чтобы игрок сразу видел свой счёт локально.
+function localScore(s) {
+  const maxStage = Math.max(1, Math.floor(s.maxStage || s.stage || 1))
+  const ngLevel = Math.max(0, Math.floor(s.ngLevel || 0))
+  const prestige = Math.max(0, Math.floor(s.prestigeCount || 0))
+  return { score: maxStage + ngLevel * 100000 + prestige * 10000, maxStage, ngLevel, prestige }
+}
 
 export default function LeaderboardPanel({ onClose }) {
   const tgUser = useGameStore(s => s.profile?.telegram)
-  const loggedIn = isLoggedIn()
+  const nickname = useGameStore(s => s.profile?.nickname)
+  const local = useGameStore(s => localScore(s))
+
+  // Авторизован = есть профиль Telegram (не зависит от состояния сервера).
+  const authed = !!(tgUser && tgUser.id)
+  const myName = nickname || tgUser?.username || tgUser?.firstName || 'Вы'
 
   const [board, setBoard] = useState(null) // null = загрузка
-  const [me, setMe] = useState(null)
+  const [me, setMe] = useState(null)       // ранг с сервера (если доступен)
   const [error, setError] = useState(false)
 
   useEffect(() => {
@@ -21,15 +35,15 @@ export default function LeaderboardPanel({ onClose }) {
     ;(async () => {
       const b = await fetchLeaderboard()
       if (!alive) return
-      setBoard(b)
-      if (!b) setError(true)
-      if (loggedIn) {
+      if (b === null || b === undefined) setError(true)
+      setBoard(b || [])
+      if (authed) {
         const r = await fetchMyRank()
-        if (alive) setMe(r)
+        if (alive && r) setMe(r)
       }
     })()
     return () => { alive = false }
-  }, [loggedIn])
+  }, [authed])
 
   const myId = tgUser?.id
 
@@ -41,8 +55,8 @@ export default function LeaderboardPanel({ onClose }) {
       </div>
 
       <div className="lb-scroll">
-        {/* Если не вошёл — приглашаем авторизоваться */}
-        {!loggedIn && (
+        {/* Не вошёл через Telegram — приглашаем авторизоваться */}
+        {!authed && (
           <div className="lb-cta">
             <Icon name="crown" size={28} />
             <div className="lb-cta-title">Войдите через Telegram</div>
@@ -53,25 +67,31 @@ export default function LeaderboardPanel({ onClose }) {
           </div>
         )}
 
-        {/* Моя позиция */}
-        {loggedIn && me && (
+        {/* Моя карточка прогресса (всегда для вошедших) */}
+        {authed && (
           <div className="lb-me">
-            <div className="lb-me-rank">#{me.rank}</div>
+            <div className="lb-me-rank">{me ? '#' + me.rank : '—'}</div>
+            <div className="lb-ava lb-me-ava">
+              {tgUser?.photoUrl
+                ? <img src={tgUser.photoUrl} alt="" />
+                : <span className="lb-ava-ph">{(myName || '?').charAt(0).toUpperCase()}</span>}
+            </div>
             <div className="lb-me-meta">
-              <span className="lb-me-name">{me.name || 'Вы'}</span>
+              <span className="lb-me-name">{myName}</span>
               <span className="lb-me-sub">
-                Зона {me.maxStage}
-                {me.ngLevel > 0 && <> · NG+{me.ngLevel}</>}
-                {me.prestige > 0 && <> · престиж {me.prestige}</>}
+                Зона {local.maxStage}
+                {local.ngLevel > 0 && <> · NG+{local.ngLevel}</>}
+                {local.prestige > 0 && <> · престиж {local.prestige}</>}
               </span>
             </div>
-            <div className="lb-me-score"><Icon name="bolt" size={14} /> {fmt(me.score)}</div>
+            <div className="lb-me-score"><Icon name="bolt" size={14} /> {fmt(local.score)}</div>
           </div>
         )}
 
-        {loggedIn && !me && board && board.length >= 0 && (
+        {/* Подсказка, если сервер пока не подтянул позицию */}
+        {authed && !me && !error && (
           <div className="hint" style={{ marginBottom: 10 }}>
-            Поиграйте немного — ваш прогресс появится в рейтинге после автосохранения.
+            Ваш прогресс синхронизируется автоматически и скоро появится в общем рейтинге.
           </div>
         )}
 
@@ -81,7 +101,7 @@ export default function LeaderboardPanel({ onClose }) {
         )}
 
         {error && (
-          <div className="lb-loading">Рейтинг временно недоступен.</div>
+          <div className="lb-loading">Общий рейтинг временно недоступен. Ваш прогресс сохраняется.</div>
         )}
 
         {board && board.length === 0 && !error && (
