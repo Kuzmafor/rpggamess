@@ -3,6 +3,7 @@ import { useGameStore } from '../store/useGameStore.js'
 import { fmt } from '../utils/fmt.js'
 import { Icon } from '../assets/Icon.jsx'
 import { fetchLeaderboard, fetchMyRank } from '../mobile/cloud.js'
+import { seasonWindow, SEASON_REWARDS, formatSeasonLeft } from '../data/seasons.js'
 
 // Раздел "Рейтинг": общий топ игроков по прогрессу.
 // Игрок, вошедший через Telegram, всегда видит свою карточку прогресса —
@@ -29,6 +30,16 @@ export default function LeaderboardPanel({ onClose }) {
   const [board, setBoard] = useState(null) // null = загрузка
   const [me, setMe] = useState(null)       // ранг с сервера (если доступен)
   const [error, setError] = useState(false)
+  const [showRewards, setShowRewards] = useState(false)
+  const [nowTs, setNowTs] = useState(Date.now())
+
+  // Тикаем таймер сезона раз в минуту для живого отсчёта.
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  const season = seasonWindow(nowTs)
 
   useEffect(() => {
     let alive = true
@@ -55,6 +66,38 @@ export default function LeaderboardPanel({ onClose }) {
       </div>
 
       <div className="lb-scroll">
+        {/* Баннер сезона: номер, таймер до конца, награды */}
+        <div className="lb-season">
+          <div className="lb-season-head">
+            <div className="lb-season-title">
+              <Icon name="crown" size={16} /> Сезон {season.number}
+            </div>
+            <div className="lb-season-timer">до конца: <b>{formatSeasonLeft(season.endsAt, nowTs)}</b></div>
+          </div>
+          <div className="lb-season-desc">
+            По итогам сезона топ-100 игроков получают награды письмом. Затем рейтинг
+            начинается заново.
+          </div>
+          <button className="lb-season-toggle" onClick={() => setShowRewards(v => !v)}>
+            {showRewards ? 'Скрыть награды ▲' : 'Награды сезона ▼'}
+          </button>
+          {showRewards && (
+            <div className="lb-rewards">
+              {SEASON_REWARDS.map(r => (
+                <div key={r.place} className="lb-reward-row">
+                  <span className="lb-reward-place">{r.label}</span>
+                  <span className="lb-reward-items">
+                    <span><Icon name="gold" size={11} /> {fmt(r.gold)}</span>
+                    <span><Icon name="gem" size={11} /> {r.gems}</span>
+                    <span><Icon name="artifact" size={11} /> {r.shards}</span>
+                    <span><Icon name="crown" size={11} /> {r.tp}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Не вошёл через Telegram — приглашаем авторизоваться */}
         {!authed && (
           <div className="lb-cta">

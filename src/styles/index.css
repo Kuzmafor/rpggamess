@@ -1223,8 +1223,12 @@ button {
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
+  /* Палитра неба из выбранного фона (с фолбэком на дефолт). */
   background:
-    radial-gradient(120% 80% at 50% 10%, #1a2660 0%, #0a0e30 55%, #06081a 100%);
+    radial-gradient(120% 80% at 50% 10%,
+      var(--bg-sky-mid, #1a2660) 0%,
+      var(--bg-sky-top, #0a0e30) 55%,
+      var(--bg-sky-bot, #06081a) 100%);
 }
 
 .arena-bg-scene .sky {
@@ -1242,7 +1246,7 @@ button {
   height: 56px;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 35% 35%, #fff7d9 0%, #f6d27a 60%, #b8902a 100%);
+    radial-gradient(circle at 35% 35%, var(--bg-accent, #fff7d9) 0%, #f6d27a 60%, #b8902a 100%);
   box-shadow:
     0 0 28px rgba(255, 220, 120, 0.32),
     0 0 70px rgba(255, 220, 120, 0.12);
@@ -3062,6 +3066,7 @@ html, body { overflow: hidden; }
   border: 1px solid var(--border);
 }
 .profile-avatar {
+  position: relative;
   width: 100px; height: 100px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
@@ -3070,6 +3075,24 @@ html, body { overflow: hidden; }
     linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.18));
   border: 1px solid var(--border);
   box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+}
+.profile-avatar-img {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(103,214,255,0.5);
+}
+.profile-tg-badge {
+  position: absolute;
+  bottom: -2px; right: -2px;
+  font-size: 9px;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(180deg, #3aa8e8, #2592d6);
+  border: 2px solid #0c0f2c;
+  border-radius: 999px;
+  padding: 2px 6px;
+  letter-spacing: 0.04em;
 }
 .profile-meta { min-width: 0; }
 .profile-nick {
@@ -6927,6 +6950,18 @@ html, body { overflow: hidden; }
   line-height: 1.5;
   color: var(--text-2);
 }
+.guide-steps {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.guide-steps li { list-style: decimal; }
+.guide-steps b { color: var(--text); }
 .guide-xp {
   list-style: none;
   margin: 8px 0 0;
@@ -7781,6 +7816,42 @@ html, body { overflow: hidden; }
   padding: 12px 14px calc(var(--tg-safe-bottom, 0px) + env(safe-area-inset-bottom) + 18px);
 }
 
+/* Баннер сезона */
+.lb-season {
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 14px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255,209,102,0.16), transparent 60%),
+    var(--glass);
+  border: 1px solid rgba(255,209,102,0.4);
+}
+.lb-season-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lb-season-title {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-weight: 900; font-size: 15px; color: var(--accent);
+}
+.lb-season-timer { font-size: 12px; color: var(--text-2); }
+.lb-season-desc { font-size: 11px; color: var(--text-dim); margin: 6px 0 8px; line-height: 1.4; }
+.lb-season-toggle {
+  font-size: 12px; font-weight: 700; color: var(--neon-2);
+  background: none; border: 0; padding: 0; cursor: pointer;
+}
+.lb-rewards { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.lb-reward-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 8px; border-radius: 10px; background: var(--surf-1);
+  border: 1px solid var(--border);
+}
+.lb-reward-place { font-size: 12px; font-weight: 800; color: var(--text); white-space: nowrap; }
+.lb-reward-items { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--text-dim); }
+.lb-reward-items span { display: inline-flex; align-items: center; gap: 3px; }
+
 .lb-loading {
   text-align: center;
   color: var(--text-dim);
@@ -7954,3 +8025,169 @@ html, body { overflow: hidden; }
 .news-para:last-child { margin-bottom: 0; }
 .news-list { margin: 4px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
 .news-list li { list-style: disc; }
+
+
+/* ================================================
+   Фоны арены (Инвентарь → Фоны)
+   ================================================ */
+.bg-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px calc(var(--tg-safe-bottom, 0px) + env(safe-area-inset-bottom) + 18px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+@media (max-width: 380px) { .bg-grid { grid-template-columns: 1fr; } }
+
+.bg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--glass);
+  border: 1px solid var(--border);
+  text-align: center;
+  cursor: pointer;
+  transition: transform 90ms ease, border-color 140ms ease;
+}
+.bg-card.active { border-color: var(--ac, #ffd166); box-shadow: 0 0 0 1px var(--ac, #ffd166) inset, 0 6px 18px rgba(0,0,0,0.3); }
+.bg-card.locked { opacity: 0.55; cursor: default; }
+.bg-card:not(.locked):active { transform: scale(0.98); }
+
+.bg-preview {
+  position: relative;
+  width: 100%;
+  height: 84px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.bg-preview-moon {
+  position: absolute;
+  top: 10px; right: 12px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(255,255,255,0.5);
+}
+.bg-preview-icon {
+  position: absolute;
+  left: 0; right: 0; bottom: 8px;
+  text-align: center;
+  font-size: 22px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+}
+.bg-name { font-size: 12px; font-weight: 800; color: var(--text); }
+.bg-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surf-1);
+  border: 1px solid var(--border);
+}
+.bg-tag.active { color: #2a1700; background: linear-gradient(180deg, #ffd166, #f59a1a); border-color: transparent; }
+.bg-tag.locked { color: var(--text-dim); }
+
+
+/* ================================================
+   Кузница (слияние оружия) — раздел Города
+   ================================================ */
+.forge-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px calc(var(--tg-safe-bottom, 0px) + env(safe-area-inset-bottom) + 80px);
+  position: relative;
+}
+.forge-rar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+.forge-rar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--surf-1);
+  border: 1px solid var(--border);
+}
+.forge-rar-chip.active {
+  color: var(--ac, #ffd166);
+  border-color: var(--ac, #ffd166);
+  background: rgba(255,255,255,0.05);
+}
+.forge-rar-cnt {
+  font-size: 10px;
+  font-weight: 800;
+  background: rgba(0,0,0,0.4);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+.forge-recipe {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 8px 0 12px;
+  font-weight: 900;
+  font-size: 15px;
+}
+.forge-recipe-arrow { color: var(--text-dim); }
+.forge-result {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--glass);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  padding: 10px;
+  margin-bottom: 12px;
+  animation: tip-in 400ms ease;
+}
+.forge-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 380px) { .forge-grid { grid-template-columns: 1fr; } }
+.forge-item {
+  position: relative;
+  text-align: left;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.forge-item.picked {
+  border-color: var(--ac, #ffd166);
+  box-shadow: 0 0 0 1px var(--ac, #ffd166) inset;
+}
+.forge-item-name { font-weight: 800; font-size: 13px; margin-bottom: 4px; color: var(--ac, #fff); }
+.forge-item-affixes { margin: 0; padding-left: 16px; font-size: 11px; color: var(--text-dim); }
+.forge-item-affixes li { list-style: disc; }
+.forge-item-check {
+  position: absolute;
+  top: 8px; right: 8px;
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--ac, #ffd166);
+  color: #2a1700;
+  font-weight: 900;
+  font-size: 12px;
+}
+.forge-btn {
+  position: sticky;
+  bottom: 12px;
+  margin-top: 14px;
+}

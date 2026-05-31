@@ -45,6 +45,16 @@ export async function initDb() {
   await p.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS prestige INT NOT NULL DEFAULT 0`)
   await p.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS ng_level INT NOT NULL DEFAULT 0`)
   await p.query(`CREATE INDEX IF NOT EXISTS saves_score_idx ON saves (score DESC)`)
+  // Сезон, к которому относится текущий score игрока.
+  await p.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS season_index INT NOT NULL DEFAULT 0`)
+  await p.query(`CREATE INDEX IF NOT EXISTS saves_season_idx ON saves (season_index, score DESC)`)
+  // Отметка уже рассчитанных (выданных) сезонов — чтобы не наградить дважды.
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS settled_seasons (
+      season_index INT PRIMARY KEY,
+      settled_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `)
 
   // Очередь начисления гемов после оплаты Telegram Stars. Гемы кладём сюда
   // при successful_payment, а клиент забирает их при следующей синхронизации.
@@ -125,29 +135,33 @@ export async function putSave(tgId, data, savedAt, meta = {}) {
   const maxStage = Math.max(1, Math.floor(Number(meta.maxStage) || 1))
   const prestige = Math.max(0, Math.floor(Number(meta.prestige) || 0))
   const ngLevel = Math.max(0, Math.floor(Number(meta.ngLevel) || 0))
+  const seasonIndex = Math.max(0, Math.floor(Number(meta.seasonIndex) || 0))
   await p.query(
-    `INSERT INTO saves (tg_id, data, saved_at, updated_at, name, photo_url, score, max_stage, prestige, ng_level)
-     VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9)
+    `INSERT INTO saves (tg_id, data, saved_at, updated_at, name, photo_url, score, max_stage, prestige, ng_level, season_index)
+     VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT (tg_id)
      DO UPDATE SET data = EXCLUDED.data, saved_at = EXCLUDED.saved_at, updated_at = now(),
        name = EXCLUDED.name, photo_url = EXCLUDED.photo_url, score = EXCLUDED.score,
-       max_stage = EXCLUDED.max_stage, prestige = EXCLUDED.prestige, ng_level = EXCLUDED.ng_level`,
-    [tgId, data, savedAt, name, photoUrl, score, maxStage, prestige, ngLevel],
+       max_stage = EXCLUDED.max_stage, prestige = EXCLUDED.prestige, ng_level = EXCLUDED.ng_level,
+       season_index = EXCLUDED.season_index`,
+    [tgId, data, savedAt, name, photoUrl, score, maxStage, prestige, ngLevel, seasonIndex],
   )
   return true
 }
 
-// Топ игроков по очкам. Возвращает массив строк рейтинга.
-export async function getLeaderboard(limit = 100) {
+// Топ игроков ТЕКУЩЕГО сезона по очкам.
+export async function getLeaderboard(limit = 100, seasonIndex = null) {
   const p = getPool()
   if (!p) return []
+  const where = seasonIndex == null ? 'score > 0' : 'score > 0 AND season_index = $2'
+  const params = seasonIndex == null ? [limit] : [limit, seasonIndex]
   const r = await p.query(
     `SELECT tg_id, name, photo_url, score, max_stage, prestige, ng_level
      FROM saves
-     WHERE score > 0
+     WHERE ${where}
      ORDER BY score DESC, max_stage DESC, updated_at ASC
      LIMIT $1`,
-    [limit],
+    params,
   )
   return r.rows.map((row, i) => ({
     rank: i + 1,
@@ -159,6 +173,33 @@ export async function getLeaderboard(limit = 100) {
     prestige: Number(row.prestige),
     ngLevel: Number(row.ng_level),
   }))
+}
+
+// Рассчитать (выдать награды) завершившийся сезон ровно один раз.
+// Возвращает true если расчёт произошёл сейчас.
+export async function settleSeasonOnce(seasonIndex, rewardFn) {
+  const p = getPool()
+  if (!p) return false
+  // Пытаемся пометить сезон рассчитанным; если уже есть — выходим.
+  const ins = await p.query(
+    `INSERT INTO settled_seasons (season_index) VALUES ($1) ON CONFLICT DO NOTHING`,
+    [seasonIndex],
+  )
+  if (ins.rowCount === 0) return false
+  // Берём топ-100 завершившегося сезона и начисляем гемы по месту.
+  const top = await p.query(
+    `SELECT tg_id FROM saves WHERE score > 0 AND season_index = $1
+     ORDER BY score DESC, max_stage DESC, updated_at ASC LIMIT 100`,
+    [seasonIndex],
+  )
+  for (let i = 0; i < top.rows.length; i++) {
+    const tgId = Number(top.rows[i].tg_id)
+    const gems = rewardFn(i + 1)
+    if (gems > 0) {
+      await creditGems(tgId, gems, { chargeId: `season_${seasonIndex}_${tgId}`, packId: 'season', stars: 0 })
+    }
+  }
+  return true
 }
 
 // Позиция конкретного игрока в общем рейтинге (1-based) или null.

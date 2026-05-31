@@ -4,6 +4,7 @@ import { fmt } from '../utils/fmt.js'
 import { Icon } from '../assets/Icon.jsx'
 import { Hero } from '../assets/sprites.jsx'
 import { HEROES, PREMIUM_GEM_COST } from '../data/heroes.js'
+import { BACKGROUNDS } from '../data/backgrounds.js'
 
 const RES_LABEL = {
   gold: 'Золото', gems: 'Гемы', ore: 'Руда',
@@ -29,12 +30,14 @@ export default function InventoryPanel({ onClose }) {
         <button className={'raid-tab' + (tab === 'items'    ? ' active' : '')} onClick={() => setTab('items')}>Ресурсы</button>
         <button className={'raid-tab' + (tab === 'mats'     ? ' active' : '')} onClick={() => setTab('mats')}>Материалы</button>
         <button className={'raid-tab' + (tab === 'shards'   ? ' active' : '')} onClick={() => setTab('shards')}>Осколки героев</button>
+        <button className={'raid-tab' + (tab === 'backgrounds' ? ' active' : '')} onClick={() => setTab('backgrounds')}>Фоны</button>
         <button className={'raid-tab' + (tab === 'premium'  ? ' active' : '')} onClick={() => setTab('premium')}>Премиум</button>
       </div>
 
       {tab === 'items'   && <ItemsTab />}
       {tab === 'mats'    && <MatsTab />}
       {tab === 'shards'  && <HeroShardsTab />}
+      {tab === 'backgrounds' && <BackgroundsTab />}
       {tab === 'premium' && <PremiumShop />}
     </section>
   )
@@ -116,9 +119,55 @@ function HeroShardsTab() {
   )
 }
 
+function BackgroundsTab() {
+  const owned = useGameStore(s => s.backgrounds || ['default'])
+  const active = useGameStore(s => s.activeBackground || 'default')
+  const setActive = useGameStore(s => s.setActiveBackground)
+
+  const RARITY_COLOR = {
+    common: '#c8cee8', rare: '#67d6ff', epic: '#a072ff', legendary: '#ffd166', mythic: '#ff5470',
+  }
+
+  return (
+    <div className="bg-grid">
+      <div className="hint" style={{ gridColumn: '1 / -1', marginTop: 0 }}>
+        Открыто: <b>{owned.length}</b> / {BACKGROUNDS.length}. Новые фоны выпадают
+        из сундуков (редкие+). Выбери фон — он применится к арене боя.
+      </div>
+      {BACKGROUNDS.map(bg => {
+        const have = owned.includes(bg.id)
+        const isActive = active === bg.id
+        return (
+          <button
+            key={bg.id}
+            className={'bg-card' + (isActive ? ' active' : '') + (have ? '' : ' locked')}
+            style={{ '--ac': RARITY_COLOR[bg.rarity] || '#c8cee8' }}
+            disabled={!have}
+            onClick={() => have && setActive(bg.id)}
+          >
+            <div
+              className="bg-preview"
+              style={{ background: `linear-gradient(180deg, ${bg.sky[0]}, ${bg.sky[1]} 55%, ${bg.sky[2]})` }}
+            >
+              <span className="bg-preview-moon" style={{ background: bg.accent }} />
+              <span className="bg-preview-icon">{bg.icon}</span>
+            </div>
+            <div className="bg-name">{bg.name}</div>
+            {isActive
+              ? <div className="bg-tag active">Выбран</div>
+              : have
+                ? <div className="bg-tag">Выбрать</div>
+                : <div className="bg-tag locked">🔒 Закрыт</div>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function PremiumShop() {
-  const gems = useGameStore(s => s.gems || 0)
   const unlocked = useGameStore(s => s.unlockedHeroes || [])
+  const gems = useGameStore(s => s.gems || 0)
   const buy = useGameStore(s => s.buyPremiumHero)
   const list = HEROES.filter(h => h.rarity === 'premium')
 

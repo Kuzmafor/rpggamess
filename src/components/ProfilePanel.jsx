@@ -31,15 +31,13 @@ export default function ProfilePanel({ onClose }) {
   const stage = useGameStore(s => s.stage)
   const maxStage = useGameStore(s => Math.max(s.stage, s.maxStage || s.stage))
   const wave = useGameStore(s => s.wave)
-  const gold = useGameStore(s => s.gold)
-  const gems = useGameStore(s => s.gems)
-  const ore = useGameStore(s => s.ore || 0)
-  const shards = useGameStore(s => s.artifactShards)
   const heroes = useGameStore(s => s.unlockedHeroes)
   const cleared = useGameStore(s => s.dungeonChapterClears || {})
   const setNickname = useGameStore(s => s.setNickname)
   const setAvatar = useGameStore(s => s.setAvatar)
   const redeemPromo = useGameStore(s => s.redeemPromo)
+
+  const tg = profile?.telegram || null
 
   const [edit, setEdit] = useState(false)
   const [nick, setNick] = useState(profile?.nickname || '')
@@ -79,7 +77,10 @@ export default function ProfilePanel({ onClose }) {
         {/* Шапка профиля */}
         <div className="profile-head">
           <div className="profile-avatar">
-            <Hero role={profile?.avatar || 'melee'} size={84} />
+            {tg?.photoUrl
+              ? <img className="profile-avatar-img" src={tg.photoUrl} alt="" referrerPolicy="no-referrer" />
+              : <Hero role={profile?.avatar || 'melee'} size={84} />}
+            {tg?.id && <span className="profile-tg-badge" title="Вошёл через Telegram">TG</span>}
           </div>
           <div className="profile-meta">
             {edit ? (
@@ -97,34 +98,26 @@ export default function ProfilePanel({ onClose }) {
               </div>
             ) : (
               <div className="profile-nick" onClick={() => setEdit(true)}>
-                <span className="profile-nick-name">{profile?.nickname || 'Без имени'}</span>
+                <span className="profile-nick-name">{profile?.nickname || (tg?.firstName) || 'Без имени'}</span>
                 <Icon name="bolt" size={14} />
               </div>
             )}
             <div className="profile-sub">Зона {stage} · максимум: {maxStage}</div>
-            <div className="profile-avatars">
-              {ROLES.map(r => (
-                <button
-                  key={r.id}
-                  className={'role-pick role-' + r.id + (profile?.avatar === r.id ? ' active' : '')}
-                  onClick={() => setAvatar(r.id)}
-                  title={r.label}
-                >
-                  <Hero role={r.id} size={28} />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Текущие ресурсы */}
-        <div className="profile-section">
-          <div className="profile-section-title">Ресурсы</div>
-          <div className="profile-grid">
-            <Stat icon="gold" label="Золото" value={fmt(gold)} accent="#ffd166" />
-            <Stat icon="gem"  label="Гемы"   value={fmt(gems)} accent="#67d6ff" />
-            <Stat icon="ore"  label="Руда"   value={fmt(ore)}  accent="#c0a06a" />
-            <Stat icon="artifact" label="Осколки" value={shards} accent="#a072ff" />
+            {/* Аватарка-роль доступна только если не вошёл через Telegram */}
+            {!tg?.photoUrl && (
+              <div className="profile-avatars">
+                {ROLES.map(r => (
+                  <button
+                    key={r.id}
+                    className={'role-pick role-' + r.id + (profile?.avatar === r.id ? ' active' : '')}
+                    onClick={() => setAvatar(r.id)}
+                    title={r.label}
+                  >
+                    <Hero role={r.id} size={28} />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -175,6 +168,7 @@ export default function ProfilePanel({ onClose }) {
           )}
           <div className="hint" style={{ marginTop: 10 }}>
             Награда придёт письмом в Почту. Откройте раздел «Почта» и заберите её.
+            Ресурсы и материалы — в разделе «Инвентарь».
           </div>
         </div>
       </div>

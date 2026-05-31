@@ -1,14 +1,25 @@
 import React from 'react'
+import { useGameStore } from '../store/useGameStore.js'
+import { getBackground } from '../data/backgrounds.js'
 
 /**
  * Параллакс-фон арены: небо + луна + звёзды,
  * силуэт дальних гор/леса, дальние ели, туман,
  * ближние лиственные деревья и трава с кустами.
  * Все слои бесшовно прокручиваются справа налево.
+ * Палитра неба берётся из выбранного игроком фона (Инвентарь → Фоны).
  */
 export default function ArenaBackground() {
+  const bgId = useGameStore(s => s.activeBackground || 'default')
+  const bg = getBackground(bgId)
+  const themeStyle = {
+    '--bg-sky-top': bg.sky[0],
+    '--bg-sky-mid': bg.sky[1],
+    '--bg-sky-bot': bg.sky[2],
+    '--bg-accent': bg.accent,
+  }
   return (
-    <div className="arena-bg-scene" aria-hidden="true">
+    <div className="arena-bg-scene" data-bg={bgId} style={themeStyle} aria-hidden="true">
       <div className="sky">
         <div className="moon" />
         <div className="stars" />

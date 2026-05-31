@@ -126,6 +126,104 @@ export default function CodexPanel({ onClose }) {
 function GuidesTab() {
   return (
     <div className="codex-scroll">
+      {/* Начало игры — для новичков */}
+      <div className="guide-card">
+        <div className="guide-head">
+          <span className="guide-ico">🚀</span>
+          <div className="guide-title">С чего начать</div>
+        </div>
+        <p className="guide-text">
+          Blade of Fate — это idle-RPG: герои бьют врагов автоматически, а вы помогаете
+          тапами и управляете прокачкой. Главная цель — проходить зоны всё дальше.
+        </p>
+        <ol className="guide-steps">
+          <li><b>Тапайте по врагу</b> — наносите урон и копите ярость.</li>
+          <li><b>Нанимайте героев</b> (раздел «Герои») — они бьют сами и усиливают отряд.</li>
+          <li><b>Качайте оружие и тап</b> (Магазин → Усиления, и «Оружие» → Эволюция).</li>
+          <li><b>Открывайте сундуки</b> в Магазине, чтобы получать новых героев.</li>
+          <li><b>Прогресс копится сам</b> — заходите забирать офлайн-награды.</li>
+        </ol>
+        <div className="guide-tip">
+          Совет: застряли на зоне? Вернитесь на пройденные зоны фармить золото,
+          прокачайте героев и оружие — и пробуйте снова.
+        </div>
+      </div>
+
+      {/* Бой, ярость и супер */}
+      <div className="guide-card">
+        <div className="guide-head">
+          <span className="guide-ico">⚡</span>
+          <div className="guide-title">Бой, ярость и супер</div>
+        </div>
+        <p className="guide-text">
+          Каждый тап и удар героя бьёт выбранного врага. Внизу копится шкала ярости —
+          когда она полна, жмите «⚡» для мощного супер-удара по всей шеренге.
+        </p>
+        <p className="guide-text">
+          Боссы появляются на 10-й волне зоны и дают гем. У некоторых есть фазы: щит,
+          ярость или временная блокировка урона по роли — переключайте фокус и ждите,
+          пока блок спадёт.
+        </p>
+      </div>
+
+      {/* Прокачка героев */}
+      <div className="guide-card">
+        <div className="guide-head">
+          <span className="guide-ico">🦸</span>
+          <div className="guide-title">Прокачка героев</div>
+        </div>
+        <p className="guide-text">
+          Уровень героя растёт за золото. Дубликаты из сундуков дают осколки и звёзды
+          (ascension) — они кратно усиливают героя. С 50-го уровня открывается
+          «Пробуждение» — выбор усиливающей ветки.
+        </p>
+        <p className="guide-text">
+          В отряде до 5 героев. Сочетания ролей и стихий дают синергии — смотрите
+          подсказку над отрядом. Меняйте состав под бой.
+        </p>
+      </div>
+
+      {/* Валюты */}
+      <div className="guide-card">
+        <div className="guide-head">
+          <span className="guide-ico">💰</span>
+          <div className="guide-title">Валюты и ресурсы</div>
+        </div>
+        <ul className="guide-xp">
+          <li><span className="dot d-boss" /><span className="lbl">Золото</span><b>прокачка</b></li>
+          <li><span className="dot d-dgn" /><span className="lbl">Гемы</span><b>сундуки, бусты</b></li>
+          <li><span className="dot d-mob" /><span className="lbl">Руда</span><b>заточка оружия</b></li>
+          <li><span className="dot d-mob" /><span className="lbl">Осколки</span><b>артефакты</b></li>
+        </ul>
+        <p className="guide-text">
+          Детали по каждому ресурсу — в «Инвентаре». Лишние гемы меняйте на
+          золото/руду/осколки в Магазине → Обмен.
+        </p>
+      </div>
+
+      {/* Куда дальше */}
+      <div className="guide-card">
+        <div className="guide-head">
+          <span className="guide-ico">🗺️</span>
+          <div className="guide-title">Режимы и что качать дальше</div>
+        </div>
+        <ul className="guide-xp">
+          <li><span className="dot d-boss" /><span className="lbl">Рейды</span><b>материалы</b></li>
+          <li><span className="dot d-dgn" /><span className="lbl">Подземелье</span><b>руда, осколки</b></li>
+          <li><span className="dot d-mob" /><span className="lbl">Башня</span><b>частицы силы</b></li>
+          <li><span className="dot d-dgn" /><span className="lbl">Экспедиции</span><b>idle-награды</b></li>
+        </ul>
+        <p className="guide-text">
+          Не забывайте про Артефакты и Таланты («Прокачка») — это постоянные бонусы
+          отряду. Город даёт пассивы и добычу руды даже офлайн, а в Кузнице города
+          можно слить 3 одинаковых оружия в одно следующей редкости.
+        </p>
+        <div className="guide-tip">
+          Совет: заходите каждый день за наградой в Календаре и забирайте подарки в
+          Почте — там приходят промокоды и бонусы.
+        </div>
+      </div>
+
       {/* Battle Pass */}
       <div className="guide-card">
         <div className="guide-head">

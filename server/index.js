@@ -3,10 +3,10 @@ import path from 'path'
 import crypto from 'crypto'
 import { fileURLToPath } from 'url'
 import { verifyLoginWidget, verifyInitData } from './telegramAuth.js'
-import { hasDb, initDb, getSave, putSave, getLeaderboard, getRank, creditGems, claimPendingGems } from './db.js'
+import { hasDb, initDb, getSave, putSave, getLeaderboard, getRank, creditGems, claimPendingGems, settleSeasonOnce } from './db.js'
+import { seasonWindow, seasonGemRewardForRank } from './season.js'
 
-// Источник истины по гем-пакам и ценам в Telegram Stars — на сервере,
-// чтобы клиент не мог подменить цену/количество.
+// Источник истины по гем-пакам и ценам в Telegram Stars — на сервере, чтобы клиент не мог подменить цену/количество.
 const GEM_PACKS = {
   p0: { gems: 20,    stars: 1,  label: 'Пробный' },
   p1: { gems: 50,    stars: 1,  label: 'Стартовый' },
@@ -141,7 +141,7 @@ app.put('/api/save', requireAuth, async (req, res) => {
       // На сервере уже более свежий сейв — отдаём его, не перезаписывая.
       return res.json({ ok: false, conflict: true, save: existing.data, savedAt: existing.savedAt })
     }
-    const meta = { ...computeScore(save), name: saveName(save), photoUrl: savePhoto(save) }
+    const meta = { ...computeScore(save), name: saveName(save), photoUrl: savePhoto(save), seasonIndex: seasonWindow().index }
     await putSave(req.tgId, save, ts, meta)
     res.json({ ok: true, savedAt: ts })
   } catch (e) {
@@ -152,10 +152,15 @@ app.put('/api/save', requireAuth, async (req, res) => {
 
 // Таблица лидеров (топ игроков). Открыта без авторизации — только публичные поля.
 app.get('/api/leaderboard', async (_req, res) => {
-  if (!hasDb()) return res.json({ board: [] })
+  if (!hasDb()) return res.json({ board: [], season: seasonWindow().number, endsAt: seasonWindow().endsAt })
   try {
-    const board = await getLeaderboard(100)
-    res.json({ board })
+    const sw = seasonWindow()
+    // При первом обращении в новом сезоне — рассчитываем награды прошлого.
+    if (sw.index > 0) {
+      settleSeasonOnce(sw.index - 1, seasonGemRewardForRank).catch(e => console.error('settle season', e))
+    }
+    const board = await getLeaderboard(100, sw.index)
+    res.json({ board, season: sw.number, endsAt: sw.endsAt })
   } catch (e) {
     console.error('leaderboard error', e)
     res.status(500).json({ error: 'server_error' })

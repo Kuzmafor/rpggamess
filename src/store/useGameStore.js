@@ -43,6 +43,7 @@ import {
 import {
   CITY_BUILDINGS, getBuilding, maxBuildingLevel, getCityBonuses,
 } from '../data/city.js'
+import { BACKGROUNDS, getBackground, BG_DROP_BY_CHEST } from '../data/backgrounds.js'
 import {
   PETS, getPet, getActivePetBonuses, petUpgradeCost, PET_MAX_LEVEL, rollPetFromEgg,
 } from '../data/pets.js'
@@ -215,6 +216,13 @@ export const PROMO_CODES = {
   'DUNGEON':   { gold: 0,      gems: 0,  shards: 25, message: 'Осколки артефактов в дорогу.' },
   'GEMSTONE':  { gold: 0,      gems: 200, shards: 0,  message: 'Сундук гемов.' },
   'NIGHTOWL':  { gold: 100000, gems: 100, shards: 15, message: 'Полночная награда.' },
+  // ===== Жирные промокоды для публикации в группе =====
+  'BLADEOFFATE': { gold: 1_000_000, gems: 500,  shards: 100, tp: 5,  message: 'Большой набор от разработчика. Спасибо, что играешь!' },
+  'STARFALL':    { gold: 500_000,   gems: 350,  shards: 60,         message: 'Звездопад наград из нашего канала.' },
+  'POWERUP':     { gold: 2_000_000, gems: 300,  shards: 80,  tp: 3,  message: 'Мощный буст к прокачке.' },
+  'LEGEND':      { gold: 5_000_000, gems: 800,  shards: 150, tp: 8,  message: 'Легендарный подарок подписчикам.' },
+  'GEMRAIN':     { gold: 0,         gems: 1500, shards: 0,           message: 'Гемовый ливень! Трать с умом.' },
+  'TITAN':       { gold: 10_000_000,gems: 1000, shards: 200, tp: 10, message: 'Титанический набор для ветеранов.' },
 }
 
 
@@ -315,6 +323,11 @@ const DEFAULT_STATE = {
   pets: {},
   petEggs: 0,
   activePet: null,
+
+  // ===== Фоны арены =====
+  // backgrounds: [id...] — открытые фоны. activeBackground — выбранный.
+  backgrounds: ['default'],
+  activeBackground: 'default',
 
   party: [],            // [id, id, ...] до PARTY_SIZE
 
@@ -491,6 +504,8 @@ function saveState(state) {
     pets: state.pets,
     petEggs: state.petEggs,
     activePet: state.activePet,
+    backgrounds: state.backgrounds,
+    activeBackground: state.activeBackground,
     party: state.party,
     raidCooldowns: state.raidCooldowns,
     dungeonChapterClears: state.dungeonChapterClears,
@@ -624,6 +639,13 @@ export const useGameStore = create((set, get) => {
   if (typeof initial.bossRushCooldown !== 'number') initial.bossRushCooldown = 0
   if (!initial.raidEscalation || typeof initial.raidEscalation !== 'object') initial.raidEscalation = {}
   if (!initial.expeditions || typeof initial.expeditions !== 'object') initial.expeditions = {}
+
+  // фоны арены — миграция
+  if (!Array.isArray(initial.backgrounds) || !initial.backgrounds.length) initial.backgrounds = ['default']
+  if (!initial.backgrounds.includes('default')) initial.backgrounds = ['default', ...initial.backgrounds]
+  if (!initial.activeBackground || !initial.backgrounds.includes(initial.activeBackground)) {
+    initial.activeBackground = 'default'
+  }
 
   // событие «Фестиваль Звездопада» — миграция + сброс при смене окна
   if (!initial.event || typeof initial.event !== 'object') {
@@ -2026,6 +2048,39 @@ export const useGameStore = create((set, get) => {
       saveState(get())
       return true
     },
+
+    // Кузница: слияние оружия. Объединяет 3 предмета оружия одной редкости в
+    // 1 предмет следующей редкости (выше). itemIds — массив из 3 id оружия.
+    forgeWeapons(itemIds) {
+      const s = get()
+      const NEXT = { common: 'rare', rare: 'epic', epic: 'legendary', legendary: 'mythic', mythic: 'premium' }
+      const ids = Array.isArray(itemIds) ? itemIds.slice(0, 3) : []
+      if (ids.length < 3) return { ok: false, reason: 'need3' }
+      const bag = s.gearBag || []
+      const items = ids.map(id => bag.find(g => g.id === id)).filter(Boolean)
+      // Все три должны существовать, быть оружием и одной редкости.
+      if (items.length < 3) return { ok: false, reason: 'missing' }
+      const rar = items[0].rarity
+      if (!NEXT[rar]) return { ok: false, reason: 'max' }
+      if (!items.every(it => it.slot === 'weapon' && it.rarity === rar)) return { ok: false, reason: 'mismatch' }
+
+      // Снимаем сливаемые предметы с героев и убираем из сумки.
+      const idset = new Set(ids)
+      const eq = { ...(s.gearEquipped || {}) }
+      for (const hid of Object.keys(eq)) {
+        const slots = { ...(eq[hid] || {}) }
+        for (const sl of Object.keys(slots)) if (idset.has(slots[sl])) delete slots[sl]
+        eq[hid] = slots
+      }
+      const newBag = bag.filter(g => !idset.has(g.id))
+      set({ gearBag: newBag, gearEquipped: eq })
+      // Куём новый предмет следующей редкости (через стандартный дроп).
+      const item = get()._dropGear({ rarity: NEXT[rar], slot: 'weapon', silent: true })
+      get()._toast?.(`Кузница: создано оружие — ${RARITY_INFO[NEXT[rar]]?.label || NEXT[rar]}!`)
+      audio.sfxFanfare?.()
+      saveState(get())
+      return { ok: true, rarity: NEXT[rar], item }
+    },
     // Реролл одного аффикса в кузнице за руду.
     rerollGearAffix(itemId, affixIdx) {
       const s = get()
@@ -2830,6 +2885,25 @@ export const useGameStore = create((set, get) => {
       saveState(get())
     },
 
+    // Выбрать активный фон арены (только из уже открытых).
+    setActiveBackground(id) {
+      const s = get()
+      if (!(s.backgrounds || []).includes(id)) return false
+      set({ activeBackground: id })
+      saveState(get())
+      return true
+    },
+
+    // Открыть фон игроку. Возвращает true если фон новый (для UI/уведомления).
+    grantBackground(id) {
+      const s = get()
+      const owned = s.backgrounds || ['default']
+      if (owned.includes(id)) return false
+      set({ backgrounds: [...owned, id] })
+      saveState(get())
+      return true
+    },
+
     // Привязка профиля Telegram (Mini App). tg — объект пользователя или null.
     // Если у игрока ещё не задан ник, подставляем имя из Telegram.
     setTelegramProfile(tg) {
@@ -2971,6 +3045,7 @@ export const useGameStore = create((set, get) => {
         gold: def.gold || 0,
         gems: def.gems || 0,
         shards: def.shards || 0,
+        tp: def.tp || 0,
       })
       set({
         stats: { ...s.stats, promosUsed: [...list, norm] },
@@ -3468,6 +3543,19 @@ export const useGameStore = create((set, get) => {
       if (eggChance && Math.random() < eggChance) {
         get().grantPetEgg(1)
         reward.petEgg = true
+      }
+      // Шанс выпадения нового фона арены (редкая косметика).
+      const bgChance = { common: 0, rare: 0.015, epic: 0.04, legendary: 0.09 }[rarity] || 0
+      if (bgChance && Math.random() < bgChance) {
+        const pool = (BG_DROP_BY_CHEST[rarity] || []).filter(id => !(get().backgrounds || []).includes(id))
+        if (pool.length) {
+          const bgId = pool[Math.floor(Math.random() * pool.length)]
+          if (get().grantBackground(bgId)) {
+            const def = getBackground(bgId)
+            reward.background = bgId
+            get()._toast?.(`Новый фон: ${def.name}! Выбери в Инвентаре.`)
+          }
+        }
       }
       return { ok: true, reward }
     },
