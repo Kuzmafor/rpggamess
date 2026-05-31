@@ -8260,30 +8260,34 @@ html, body { overflow: hidden; }
 .intro-logo-img {
   position: relative;
   z-index: 1;
-  max-width: min(78vw, 460px);
-  max-height: 64vh;
+  max-width: min(86vw, 520px);
+  max-height: 72vh;
   width: auto;
   height: auto;
   object-fit: contain;
-  border-radius: 18px;
+  /* Растворяем прямоугольную рамку картинки в чёрный фон через радиальную
+     маску: центр непрозрачный, края плавно уходят в прозрачность —
+     видно только светящийся логотип и текст, без видимой подложки. */
+  -webkit-mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, #000 56%, transparent 82%);
+  mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, #000 56%, transparent 82%);
   /* стартовое состояние — невидим и чуть уменьшен */
   opacity: 0;
-  transform: scale(0.82);
-  filter: drop-shadow(0 0 0 rgba(255,200,90,0)) brightness(0.9);
+  transform: scale(0.8) translateY(6px);
+  filter: drop-shadow(0 0 0 rgba(255,200,90,0)) brightness(1);
   transition:
-    opacity 800ms ease,
-    transform 1100ms cubic-bezier(0.22, 0.7, 0.25, 1),
-    filter 900ms ease;
+    opacity 900ms ease,
+    transform 1200ms cubic-bezier(0.22, 0.7, 0.25, 1),
+    filter 1000ms ease;
 }
 /* появление: fade-in + zoom + свечение */
 .intro-logo.intro-hold .intro-logo-img {
   opacity: 1;
-  transform: scale(1);
-  filter: drop-shadow(0 0 28px rgba(255,190,80,0.55)) brightness(1.05);
+  transform: scale(1) translateY(0);
+  filter: drop-shadow(0 0 34px rgba(255,190,80,0.6)) brightness(1.1);
 }
 /* лёгкий «дыш» логотипа после появления */
 .intro-logo.intro-hold .intro-logo-img {
-  animation: intro-breathe 2.6s ease-in-out 0.9s infinite;
+  animation: intro-breathe 2.8s ease-in-out 1s infinite;
 }
 
 @keyframes intro-glow-pulse {
