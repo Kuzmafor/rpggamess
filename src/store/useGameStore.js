@@ -27,7 +27,7 @@ import { TOWER, buildTowerEnemy, modifiersAt, towerFloorReward, weekKey, towerEn
 import { rollTowerChest, towerBuffMods, TOWER_BUFFS } from '../data/towerChests.js'
 import { BOSS_RUSH, buildRushBoss, bossRushRewards } from '../data/bossRush.js'
 import { EXPEDITIONS, getExpedition } from '../data/expeditions.js'
-import { rollGear, applyGearBonuses, GEAR_SLOTS, REROLL_COST, rerollAffix as rerollAffixData } from '../data/gear.js'
+import { rollGear, applyGearBonuses, GEAR_SLOTS, REROLL_COST, rerollAffix as rerollAffixData, RARITY_INFO } from '../data/gear.js'
 import { WEAPON_CATALOG, getWeaponDef as getCatalogWeaponDef } from '../data/weaponCatalog.js'
 import {
   SEASONS, getActiveSeason, BP_REWARDS, BP_MAX_LEVEL,
@@ -105,11 +105,23 @@ export const CHESTS = {
     currency: 'gems', cost: 40, color: '#ffd166',
     guaranteedGold: 50000, guaranteedOre: 110,
     heroChance: 0.90,
-    // премиум 1.5% (1 / 67)
-    heroRarityChances: { common: 0, rare: 0.07, epic: 0.485, legendary: 0.40, mythic: 0.03, premium: 0.015 },
+    // Топовые редкости теперь выпадают РЕДКО естественным роллом — основной
+    // путь к легендарным героям через pity-гарантию (см. CHEST_PITY_THRESHOLD).
+    heroRarityChances: { common: 0, rare: 0.32, epic: 0.55, legendary: 0.115, mythic: 0.01, premium: 0.005 },
     fallbackShards: 12, fallbackGold: 100000,
   },
 }
+
+// Pity-система: через сколько открытий БЕЗ легендарного+ героя следующий ролл
+// героя гарантированно даёт легендарного. Чем дешевле сундук — тем дольше пити.
+export const CHEST_PITY_THRESHOLD = {
+  common:    120,
+  rare:      60,
+  epic:      30,
+  legendary: 12,
+}
+// Редкости, которые сбрасывают pity (считаются «топовым» дропом).
+const PITY_RESET_RARITIES = new Set(['legendary', 'mythic', 'premium'])
 
 // Сундуки сокровищ — без героев, но с большим золотом + рудой.
 export const TREASURE_CHESTS = {
@@ -223,6 +235,8 @@ export const PROMO_CODES = {
   'LEGEND':      { gold: 5_000_000, gems: 800,  shards: 150, tp: 8,  message: 'Легендарный подарок подписчикам.' },
   'GEMRAIN':     { gold: 0,         gems: 1500, shards: 0,           message: 'Гемовый ливень! Трать с умом.' },
   'TITAN':       { gold: 10_000_000,gems: 1000, shards: 200, tp: 10, message: 'Титанический набор для ветеранов.' },
+  // Промокод на случайный фон арены (косметика).
+  'NEWLOOK':     { randomBg: true,  gold: 100000, gems: 50,          message: 'Случайный фон арены + бонус. Выбери его в Инвентаре!' },
 }
 
 
@@ -385,6 +399,11 @@ const DEFAULT_STATE = {
     active: {},               // индивидуальные таймеры по id буста: { [boostId]: untilTs }
   },
 
+  // Pity-счётчик сундуков: сколько открытий подряд БЕЗ легендарного+ героя.
+  // Накапливается по каждому типу сундука; при достижении порога следующий
+  // ролл героя гарантированно даёт легендарного. Счётчик сбрасывается.
+  chestPity: {},
+
   // dps трекинг
   dpsWindow: [],
 
@@ -516,6 +535,7 @@ function saveState(state) {
     profile: state.profile,
     stats: state.stats,
     boosts: state.boosts,
+    chestPity: state.chestPity,
     loginCalendar: state.loginCalendar,
     souls: state.souls,
     prestigeCount: state.prestigeCount,
@@ -593,6 +613,8 @@ export const useGameStore = create((set, get) => {
   } else if (!initial.boosts.active || typeof initial.boosts.active !== 'object') {
     initial.boosts = { ...initial.boosts, active: {} }
   }
+  // pity-счётчик сундуков — миграция
+  if (!initial.chestPity || typeof initial.chestPity !== 'object') initial.chestPity = {}
   if (!initial.stats || typeof initial.stats !== 'object') {
     initial.stats = {
       enemiesKilled: 0, bossesKilled: 0, tapsCount: 0, superCount: 0,
@@ -901,7 +923,10 @@ export const useGameStore = create((set, get) => {
       const speedBoost = s.boosts?.speedBoostUntil > Date.now()
         ? (s.boosts?.speedBoostMult || 2)
         : 1
-      return Math.round(tap * weapon.dmgMult * heroDmg * 0.3 * s.passiveLevel * speedBoost)
+      // Буст урона из магазина применяется и к пассивному DPS, чтобы эффект
+      // был заметен (иначе на высоком прогрессе разницы почти не видно).
+      const dmgBoost = activeBoostMult(s.boosts, 'dmg')
+      return Math.round(tap * weapon.dmgMult * heroDmg * 0.3 * s.passiveLevel * speedBoost * dmgBoost)
     },
 
     getCurrentDps() {
@@ -3038,10 +3063,22 @@ export const useGameStore = create((set, get) => {
       if (list.includes(norm)) return { ok: false, reason: 'used' }
       const def = PROMO_CODES[norm]
       if (!def) return { ok: false, reason: 'invalid' }
+      // Промокод на случайный фон — выдаём фон сразу (не письмом).
+      let bgGranted = null
+      if (def.randomBg) {
+        const ownedBg = s.backgrounds || ['default']
+        const pool = BACKGROUNDS.filter(b => b.id !== 'default' && !ownedBg.includes(b.id))
+        if (pool.length) {
+          const bg = pool[Math.floor(Math.random() * pool.length)]
+          get().grantBackground(bg.id)
+          bgGranted = bg
+        }
+      }
       // Отправим письмо
       get().sendMail({
         title: `Промокод "${norm}"`,
-        body: def.message || 'Награда за промокод. Заберите в Почте!',
+        body: (def.message || 'Награда за промокод. Заберите в Почте!')
+          + (bgGranted ? ` Новый фон «${bgGranted.name}» уже в Инвентаре.` : ''),
         gold: def.gold || 0,
         gems: def.gems || 0,
         shards: def.shards || 0,
@@ -3437,29 +3474,43 @@ export const useGameStore = create((set, get) => {
         hero: null, dup: false, levelUp: 0,
       }
 
-      // 2) Ролл героя по шансу heroChance.
+      // 2) Ролл героя по шансу heroChance (+ pity-гарантия легендарного).
+      const pityNow = (s.chestPity?.[rarity] || 0)
+      const pityCap = CHEST_PITY_THRESHOLD[rarity] || 0
+      const pityTriggered = pityCap > 0 && pityNow + 1 >= pityCap
+      let gotTopHero = false
       const heroRoll = Math.random()
-      if (heroRoll < (def.heroChance || 0)) {
+      if (pityTriggered || heroRoll < (def.heroChance || 0)) {
         // Выберем редкость героя по распределению.
-        const r = Math.random()
-        let acc = 0
+        // Если сработала pity-гарантия — форсируем легендарного.
         let pickedRarity = null
-        for (const [k, p] of Object.entries(def.heroRarityChances || {})) {
-          acc += p
-          if (r <= acc) { pickedRarity = k; break }
+        if (pityTriggered) {
+          pickedRarity = 'legendary'
+        } else {
+          const r = Math.random()
+          let acc = 0
+          for (const [k, p] of Object.entries(def.heroRarityChances || {})) {
+            acc += p
+            if (r <= acc) { pickedRarity = k; break }
+          }
         }
         if (pickedRarity) {
           // Раньше премиум-героев из сундуков исключали полностью.
           // Теперь они могут выпасть, но шанс задан в heroRarityChances.
           // Сезонные герои НЕ выпадают из сундуков — они выдаются только
           // как финальная награда премиум-трека Battle Pass.
-          const pool = HEROES.filter(h => h.rarity === pickedRarity && h.rarity !== 'season')
+          let pool = HEROES.filter(h => h.rarity === pickedRarity && h.rarity !== 'season')
+          // На случай пустого пула легендарных при pity — берём ближайшую редкость.
+          if (pool.length === 0 && pityTriggered) {
+            pool = HEROES.filter(h => ['epic', 'rare'].includes(h.rarity))
+          }
           if (pool.length > 0) {
             const hero = pool[Math.floor(Math.random() * pool.length)]
             reward.hero = hero
             const owned = s.unlockedHeroes.includes(hero.id)
             reward.dup = owned
             if (owned) reward.levelUp = 1
+            if (PITY_RESET_RARITIES.has(hero.rarity)) gotTopHero = true
           } else {
             // герои этой редкости все собраны / нет — компенсация осколками
             reward.shards += def.fallbackShards
@@ -3471,12 +3522,17 @@ export const useGameStore = create((set, get) => {
       if (!reward.hero) {
         reward.ore += Math.ceil((def.guaranteedOre || 0) * 0.4)
       }
+      // Обновляем pity-счётчик: сброс при топ-герое, иначе +1.
+      const nextPity = { ...(s.chestPity || {}) }
+      nextPity[rarity] = gotTopHero ? 0 : pityNow + 1
+      reward.pity = pityTriggered
 
       const next = {
         gold: s.gold - (def.currency === 'gold' ? def.cost : 0) + reward.gold,
         gems: s.gems - (def.currency === 'gems' ? def.cost : 0) + reward.gems,
         ore:  (s.ore || 0) + reward.ore,
         artifactShards: s.artifactShards + reward.shards,
+        chestPity: nextPity,
       }
 
       // 3) Шанс выпадения снаряжения. Чем «жирнее» сундук — тем выше шанс
@@ -3588,21 +3644,33 @@ export const useGameStore = create((set, get) => {
       const heroLevels = { ...s0.heroLevels }
       const heroShards = { ...s0.heroShards }
       let party = [...s0.party]
+      // Pity-счётчик внутри пачки.
+      let pity = s0.chestPity?.[rarity] || 0
+      const pityCap = CHEST_PITY_THRESHOLD[rarity] || 0
 
       for (let n = 0; n < count; n++) {
         addGold += def.guaranteedGold || 0
         addOre  += def.guaranteedOre || 0
 
         let gotHero = null
-        if (Math.random() < (def.heroChance || 0)) {
-          const r = Math.random()
-          let acc = 0, pickedRarity = null
-          for (const [k, p] of Object.entries(def.heroRarityChances || {})) {
-            acc += p
-            if (r <= acc) { pickedRarity = k; break }
+        const forceLegendary = pityCap > 0 && pity + 1 >= pityCap
+        if (forceLegendary || Math.random() < (def.heroChance || 0)) {
+          let pickedRarity = null
+          if (forceLegendary) {
+            pickedRarity = 'legendary'
+          } else {
+            const r = Math.random()
+            let acc = 0
+            for (const [k, p] of Object.entries(def.heroRarityChances || {})) {
+              acc += p
+              if (r <= acc) { pickedRarity = k; break }
+            }
           }
           if (pickedRarity) {
-            const pool = HEROES.filter(h => h.rarity === pickedRarity && h.rarity !== 'season')
+            let pool = HEROES.filter(h => h.rarity === pickedRarity && h.rarity !== 'season')
+            if (pool.length === 0 && forceLegendary) {
+              pool = HEROES.filter(h => ['epic', 'rare'].includes(h.rarity))
+            }
             if (pool.length > 0) {
               gotHero = pool[Math.floor(Math.random() * pool.length)]
             } else {
@@ -3625,8 +3693,12 @@ export const useGameStore = create((set, get) => {
             if (party.length < PARTY_SIZE) party.push(gotHero.id)
             heroResults.push({ hero: gotHero, dup: false })
           }
+          // pity: топ-герой сбрасывает, иначе счётчик растёт.
+          if (PITY_RESET_RARITIES.has(gotHero.rarity)) pity = 0
+          else pity += 1
         } else {
           addOre += Math.ceil((def.guaranteedOre || 0) * 0.4)
+          pity += 1
         }
 
         // gear
@@ -3655,6 +3727,7 @@ export const useGameStore = create((set, get) => {
         heroLevels,
         heroShards,
         party,
+        chestPity: { ...(s0.chestPity || {}), [rarity]: pity },
       })
 
       // Выдаём gear после set (он сам делает set по gearBag)
@@ -3806,6 +3879,7 @@ export const useGameStore = create((set, get) => {
       nextBoosts.goldBoostMult = goldMult
 
       set({ gems: s.gems - def.cost, boosts: nextBoosts })
+      get()._toast?.(`Буст активен: ${def.label}`)
       saveState(get())
       return true
     },

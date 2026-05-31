@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useGameStore, CHESTS, BOOSTS, CONVERTS, GEM_PACKS, TREASURE_CHESTS, BOSS_CHESTS } from '../store/useGameStore.js'
+import { useGameStore, CHESTS, BOOSTS, CONVERTS, GEM_PACKS, TREASURE_CHESTS, BOSS_CHESTS, CHEST_PITY_THRESHOLD } from '../store/useGameStore.js'
 import { fmt } from '../utils/fmt.js'
 import { Icon } from '../assets/Icon.jsx'
 import ChestArt from '../assets/ChestArt.jsx'
@@ -78,6 +78,7 @@ function Chests({ onReveal, onBulkReveal }) {
   const openBoss = useGameStore(s => s.openBossChest)
   const gold = useGameStore(s => s.gold)
   const gems = useGameStore(s => s.gems)
+  const chestPity = useGameStore(s => s.chestPity || {})
   const order = ['common', 'rare', 'epic', 'legendary']
   const [oddsRarity, setOddsRarity] = useState(null)
   const pressTimer = React.useRef(null)
@@ -145,6 +146,21 @@ function Chests({ onReveal, onBulkReveal }) {
               <div className="shop-desc">
                 Шанс героя: <b>{Math.round(def.heroChance * 100)}%</b>. Удерживайте карточку — увидите все шансы.
               </div>
+              {CHEST_PITY_THRESHOLD[rar] > 0 && (() => {
+                const cur = chestPity[rar] || 0
+                const cap = CHEST_PITY_THRESHOLD[rar]
+                const left = Math.max(0, cap - cur)
+                return (
+                  <div className="chest-pity">
+                    <div className="chest-pity-bar">
+                      <div className="chest-pity-fill" style={{ width: Math.min(100, (cur / cap) * 100) + '%' }} />
+                    </div>
+                    <span className="chest-pity-text">
+                      {left === 0 ? 'Легендарный герой гарантирован!' : `До гаранта легендарного: ${left}`}
+                    </span>
+                  </div>
+                )
+              })()}
               <div className="shop-rewards">
                 <span><Icon name="gold" size={12} /> +{fmt(def.guaranteedGold)}</span>
                 <span><Icon name="ore" size={12} /> +{def.guaranteedOre}</span>
