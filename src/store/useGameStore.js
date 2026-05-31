@@ -499,6 +499,23 @@ function saveState(state) {
     savedAt: Date.now(),
   }
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(subset)) } catch {}
+  scheduleCloudPush(subset)
+}
+
+// ---- Облачная синхронизация (опционально, после входа через Telegram) ----
+// Чтобы не дёргать сеть на каждое действие, отправляем сейв с задержкой.
+let cloudPushTimer = null
+let cloudPushFn = null
+// Регистрируется из App после загрузки модуля cloud, чтобы стор не зависел
+// напрямую от сетевого слоя (и сборка не тянула fetch в нативный билд зря).
+export function registerCloudPush(fn) { cloudPushFn = fn }
+function scheduleCloudPush(subset) {
+  if (!cloudPushFn) return
+  if (cloudPushTimer) clearTimeout(cloudPushTimer)
+  cloudPushTimer = setTimeout(() => {
+    cloudPushTimer = null
+    try { cloudPushFn(subset, subset.savedAt) } catch {}
+  }, 4000)
 }
 
 export const useGameStore = create((set, get) => {
@@ -2781,6 +2798,36 @@ export const useGameStore = create((set, get) => {
       if (!s.profile.nickname && autoName) nextProfile.nickname = autoName
       set({ profile: nextProfile })
       saveState(get())
+    },
+
+    // Применить облачный сейв поверх текущего состояния (после входа на новом
+    // устройстве). Сохраняем профиль Telegram текущей сессии, остальное берём
+    // из облака. Затем фиксируем локально, но НЕ пушим повторно в облако.
+    applyCloudSave(cloud) {
+      if (!cloud || typeof cloud !== 'object') return false
+      const s = get()
+      const initStage = cloud.stage ?? s.stage ?? 1
+      const initWave = cloud.wave ?? s.wave ?? 1
+      const merged = {
+        ...DEFAULT_STATE,
+        ...cloud,
+        // профиль Telegram оставляем от текущего входа
+        profile: { ...(cloud.profile || {}), telegram: s.profile?.telegram || cloud.profile?.telegram || null },
+        // боевые поля пересобираем, их не переносим из облака
+        enemies: freshLineup(initStage, initWave, cloud.ngLevel || 0),
+        targetIdx: 0,
+        raidActive: null,
+        dungeonRun: null,
+        rage: 0,
+        superActive: false,
+        superEndsAt: 0,
+        dpsWindow: [],
+      }
+      if (!merged.maxStage || merged.maxStage < merged.stage) merged.maxStage = merged.stage
+      set(merged)
+      // пишем только локально, чтобы не словить конфликт с тем же сейвом
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify({ ...cloud, savedAt: cloud.savedAt || Date.now() })) } catch {}
+      return true
     },
 
     // Промокоды — заранее заданный набор. После активации награда

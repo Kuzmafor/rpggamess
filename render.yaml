@@ -1,0 +1,28 @@
+# Render Infrastructure as Code.
+# Один Web Service: собирает игру (vite build) и запускает Node-сервер,
+# который раздаёт статику и обслуживает API (/api/auth, /api/save).
+# База данных Render Postgres подключается через переменную DATABASE_URL.
+services:
+  - type: web
+    name: blade-of-fate
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      # Токен бота из @BotFather. Значение задаётся в дашборде Render (Secret),
+      # в репозиторий НЕ коммитится.
+      - key: BOT_TOKEN
+        sync: false
+      # Секрет для подписи сессий — Render сгенерирует случайное значение.
+      - key: SESSION_SECRET
+        generateValue: true
+      # Строка подключения к базе берётся автоматически из созданной БД.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: blade-of-fate-db
+          property: connectionString
+
+databases:
+  - name: blade-of-fate-db
+    plan: free

@@ -34,12 +34,45 @@ import TowerPanel from './components/TowerPanel.jsx'
 import TowerHud from './components/TowerHud.jsx'
 import InventoryPanel from './components/InventoryPanel.jsx'
 import { useGameStore } from './store/useGameStore.js'
+import { registerCloudPush } from './store/useGameStore.js'
 import * as audio from './audio/engine.js'
-import { initTelegram, getTelegramUser } from './mobile/telegram.js'
+import { initTelegram, getTelegramUser, getInitDataRaw } from './mobile/telegram.js'
+import { authTelegram, fetchCloudSave, pushCloudSave, isLoggedIn } from './mobile/cloud.js'
 import {
   ensureNotifications, setHapticsEnabled, setNotificationsEnabled,
   notifyOfflineFull, cancelOfflineFull,
 } from './mobile/index.js'
+
+// Синхронизация облака после успешного входа: тянем серверный сейв и,
+// если он новее локального, применяем его к игре. Иначе отправляем локальный
+// в облако, чтобы там оказалась самая свежая версия.
+async function syncCloudAfterLogin() {
+  try {
+    const cloud = await fetchCloudSave()
+    const localSavedAt = useGameStore.getState().savedAt || 0
+    if (cloud && cloud.save) {
+      const cloudSavedAt = cloud.savedAt || cloud.save.savedAt || 0
+      if (cloudSavedAt > localSavedAt) {
+        useGameStore.getState().applyCloudSave({ ...cloud.save, savedAt: cloudSavedAt })
+        return
+      }
+    }
+    // Локальный прогресс новее (или облако пустое) — заливаем его в облако.
+    const s = useGameStore.getState()
+    pushCloudSave(buildSaveSubset(s), s.savedAt || Date.now())
+  } catch {}
+}
+
+// Минимальный снимок прогресса для отправки в облако сразу после входа.
+// (Полный снимок формируется в сторе при следующем saveState, здесь —
+// чтобы не ждать первого действия игрока.)
+function buildSaveSubset(s) {
+  try {
+    const raw = localStorage.getItem('blade-of-fate.save.v3')
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return { savedAt: s.savedAt || Date.now() }
+}
 
 export default function App() {
   const [tab, setTab] = useState('battle')
@@ -149,10 +182,26 @@ export default function App() {
 
   // ===== Telegram Mini App: подхватываем профиль игрока при старте =====
   useEffect(() => {
+    // Регистрируем отправку сейвов в облако (debounce внутри стора).
+    registerCloudPush((subset, savedAt) => {
+      if (isLoggedIn()) pushCloudSave(subset, savedAt)
+    })
+
     initTelegram()
     const user = getTelegramUser()
     if (user) {
       useGameStore.getState().setTelegramProfile(user)
+      // Внутри Telegram авторизуемся через initData и подтягиваем облако.
+      const initData = getInitDataRaw()
+      if (initData) {
+        ;(async () => {
+          const auth = await authTelegram({ initData })
+          if (auth) await syncCloudAfterLogin()
+        })()
+      }
+    } else if (isLoggedIn()) {
+      // Уже была сессия в этом браузере — синхронизируемся.
+      syncCloudAfterLogin()
     }
   }, [])
 

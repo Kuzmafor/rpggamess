@@ -3,6 +3,7 @@ import ArenaBackground from './ArenaBackground.jsx'
 import { Icon } from '../assets/Icon.jsx'
 import { useGameStore } from '../store/useGameStore.js'
 import { isTelegram } from '../mobile/telegram.js'
+import { authTelegram, fetchCloudSave, pushCloudSave } from '../mobile/cloud.js'
 import TelegramLoginButton from './TelegramLoginButton.jsx'
 
 const TIPS = [
@@ -32,7 +33,34 @@ export default function LoadingScreen({ onDone }) {
 
   const tgUser = useGameStore(s => s.profile?.telegram)
   const setTelegramProfile = useGameStore(s => s.setTelegramProfile)
+  const applyCloudSave = useGameStore(s => s.applyCloudSave)
   const inTelegram = useMemo(() => isTelegram(), [])
+
+  // Вход через Login Widget в браузере: сохраняем профиль, авторизуемся на
+  // сервере и подтягиваем облачный сейв (если он новее локального).
+  async function handleWidgetAuth(user) {
+    setTelegramProfile(user)
+    const auth = await authTelegram({ widget: user })
+    if (!auth) return // сервер недоступен или подпись не прошла — играем локально
+    try {
+      const cloud = await fetchCloudSave()
+      const localSavedAt = useGameStore.getState().savedAt || 0
+      if (cloud && cloud.save) {
+        const cloudSavedAt = cloud.savedAt || cloud.save.savedAt || 0
+        if (cloudSavedAt > localSavedAt) {
+          applyCloudSave({ ...cloud.save, savedAt: cloudSavedAt })
+          return
+        }
+      }
+      const s = useGameStore.getState()
+      let subset = { savedAt: s.savedAt || Date.now() }
+      try {
+        const raw = localStorage.getItem('blade-of-fate.save.v3')
+        if (raw) subset = JSON.parse(raw)
+      } catch {}
+      pushCloudSave(subset, subset.savedAt || Date.now())
+    } catch {}
+  }
 
   useEffect(() => {
     if (state !== 'loading') return
@@ -151,7 +179,7 @@ export default function LoadingScreen({ onDone }) {
           <div className="ls-auth-note">Вход через Telegram…</div>
         ) : (
           <div className="ls-auth-widget">
-            <TelegramLoginButton onAuth={(user) => setTelegramProfile(user)} />
+            <TelegramLoginButton onAuth={handleWidgetAuth} />
           </div>
         )}
         {!tgUser && !inTelegram && (
