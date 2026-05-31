@@ -328,6 +328,7 @@ const DEFAULT_STATE = {
     nickname: '',
     avatar: 'melee',          // ключ роли героя для портрета
     createdAt: 0,
+    telegram: null,           // данные Telegram Mini App: { id, firstName, lastName, username, photoUrl }
   },
   stats: {
     enemiesKilled: 0,
@@ -523,9 +524,14 @@ export const useGameStore = create((set, get) => {
   }
   // профиль/статы — мягкая миграция
   if (!initial.profile || typeof initial.profile !== 'object') {
-    initial.profile = { nickname: '', avatar: 'melee', createdAt: Date.now() }
-  } else if (!initial.profile.createdAt) {
-    initial.profile = { ...initial.profile, createdAt: Date.now() }
+    initial.profile = { nickname: '', avatar: 'melee', createdAt: Date.now(), telegram: null }
+  } else {
+    if (!initial.profile.createdAt) {
+      initial.profile = { ...initial.profile, createdAt: Date.now() }
+    }
+    if (typeof initial.profile.telegram === 'undefined') {
+      initial.profile = { ...initial.profile, telegram: null }
+    }
   }
   if (!initial.stats || typeof initial.stats !== 'object') {
     initial.stats = {
@@ -2751,6 +2757,29 @@ export const useGameStore = create((set, get) => {
       const allowed = ['melee', 'ranged', 'mage', 'support']
       const av = allowed.includes(role) ? role : 'melee'
       set({ profile: { ...s.profile, avatar: av } })
+      saveState(get())
+    },
+
+    // Привязка профиля Telegram (Mini App). tg — объект пользователя или null.
+    // Если у игрока ещё не задан ник, подставляем имя из Telegram.
+    setTelegramProfile(tg) {
+      const s = get()
+      if (!tg || !tg.id) {
+        set({ profile: { ...s.profile, telegram: null } })
+        saveState(get())
+        return
+      }
+      const telegram = {
+        id: tg.id,
+        firstName: String(tg.first_name || tg.firstName || '').slice(0, 64),
+        lastName: String(tg.last_name || tg.lastName || '').slice(0, 64),
+        username: String(tg.username || '').slice(0, 64),
+        photoUrl: String(tg.photo_url || tg.photoUrl || ''),
+      }
+      const autoName = (telegram.username || telegram.firstName || '').slice(0, 24).trim()
+      const nextProfile = { ...s.profile, telegram }
+      if (!s.profile.nickname && autoName) nextProfile.nickname = autoName
+      set({ profile: nextProfile })
       saveState(get())
     },
 

@@ -35,6 +35,7 @@ import TowerHud from './components/TowerHud.jsx'
 import InventoryPanel from './components/InventoryPanel.jsx'
 import { useGameStore } from './store/useGameStore.js'
 import * as audio from './audio/engine.js'
+import { initTelegram, getTelegramUser } from './mobile/telegram.js'
 import {
   ensureNotifications, setHapticsEnabled, setNotificationsEnabled,
   notifyOfflineFull, cancelOfflineFull,
@@ -144,6 +145,15 @@ export default function App() {
     setHapticsEnabled(!!s.haptics)
     setNotificationsEnabled(!!s.notifications)
     if (s.notifications) ensureNotifications()
+  }, [])
+
+  // ===== Telegram Mini App: подхватываем профиль игрока при старте =====
+  useEffect(() => {
+    initTelegram()
+    const user = getTelegramUser()
+    if (user) {
+      useGameStore.getState().setTelegramProfile(user)
+    }
   }, [])
 
   // ===== Уведомление "оффлайн-сундук полон" =====

@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import ArenaBackground from './ArenaBackground.jsx'
 import { Icon } from '../assets/Icon.jsx'
+import { useGameStore } from '../store/useGameStore.js'
+import { isTelegram } from '../mobile/telegram.js'
+import TelegramLoginButton from './TelegramLoginButton.jsx'
 
 const TIPS = [
   'Тапайте по врагу для фокуса — герои добивают остальных.',
@@ -26,6 +29,10 @@ export default function LoadingScreen({ onDone }) {
   //   'closing' — тап получен, играем fade-out и зовём onDone
   const [state, setState] = useState('loading')
   const isClosing = state === 'closing'
+
+  const tgUser = useGameStore(s => s.profile?.telegram)
+  const setTelegramProfile = useGameStore(s => s.setTelegramProfile)
+  const inTelegram = useMemo(() => isTelegram(), [])
 
   useEffect(() => {
     if (state !== 'loading') return
@@ -76,7 +83,7 @@ export default function LoadingScreen({ onDone }) {
       <div className="ls-links" onClick={(e) => e.stopPropagation()}>
         <a
           className="ls-link"
-          href="https://t.me/bladeoffateapp"
+          href="https://t.me/bladeoffatebot"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Telegram канал"
@@ -92,7 +99,7 @@ export default function LoadingScreen({ onDone }) {
         </a>
         <a
           className="ls-link"
-          href="https://t.me/bladeoffateapp"
+          href="https://t.me/bladeoffatebot"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Поддержка"
@@ -109,6 +116,7 @@ export default function LoadingScreen({ onDone }) {
       </div>
 
       {/* Логотип + слоган */}
+      <div className="ls-content">
       <div className="ls-brand">
         <div className="ls-logo">
           <Icon name="sword" size={28} />
@@ -116,6 +124,41 @@ export default function LoadingScreen({ onDone }) {
         </div>
         <div className="ls-sub">Idle RPG · параллакс приключение</div>
       </div>
+
+      {/* Блок входа через Telegram */}
+      <div className="ls-auth" onClick={(e) => e.stopPropagation()}>
+        {tgUser ? (
+          <div className="ls-auth-user">
+            {tgUser.photoUrl ? (
+              <img className="ls-auth-ava" src={tgUser.photoUrl} alt="" />
+            ) : (
+              <div className="ls-auth-ava ls-auth-ava--ph">
+                {(tgUser.firstName || tgUser.username || '?').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="ls-auth-meta">
+              <span className="ls-auth-hi">С возвращением</span>
+              <span className="ls-auth-name">
+                {tgUser.firstName || (tgUser.username ? '@' + tgUser.username : 'Игрок')}
+              </span>
+            </div>
+            <svg className="ls-auth-check" viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+              <path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" />
+            </svg>
+          </div>
+        ) : inTelegram ? (
+          <div className="ls-auth-note">Вход через Telegram…</div>
+        ) : (
+          <div className="ls-auth-widget">
+            <TelegramLoginButton onAuth={(user) => setTelegramProfile(user)} />
+          </div>
+        )}
+        {!tgUser && !inTelegram && (
+          <div className="ls-auth-guest">или продолжите как гость</div>
+        )}
+      </div>
+
+      <div className="ls-spacer" />
 
       {/* Прогресс или приглашение нажать */}
       {state === 'loading' && (
@@ -145,6 +188,7 @@ export default function LoadingScreen({ onDone }) {
       <div className="ls-tips">
         <div className="ls-tip-label">Совет</div>
         <div key={tipIdx} className="ls-tip">{TIPS[tipIdx]}</div>
+      </div>
       </div>
     </div>
   )
