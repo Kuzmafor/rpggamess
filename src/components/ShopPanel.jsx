@@ -646,8 +646,57 @@ function Convert() {
 }
 
 /* ===================== ГЕМЫ ===================== */
+// Иконка звезды Telegram (для кнопки оплаты).
+function StarIcon({ size = 16 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden>
+      <path
+        fill="#ffce00"
+        d="M12 2.5c.4 0 .77.23.95.59l2.46 4.98 5.5.8c.4.06.73.34.85.72.12.38.02.8-.27 1.08l-3.98 3.88.94 5.48c.07.4-.1.8-.42 1.04-.33.24-.76.27-1.12.08L12 18.06l-4.91 2.58c-.36.19-.79.16-1.12-.08a1.06 1.06 0 0 1-.42-1.04l.94-5.48-3.98-3.88a1.06 1.06 0 0 1-.27-1.08c.12-.38.45-.66.85-.72l5.5-.8 2.46-4.98c.18-.36.55-.59.95-.59Z"
+      />
+    </svg>
+  )
+}
+
 function Gems() {
   const buy = useGameStore(s => s.buyGemPack)
+  const addGems = useGameStore(s => s.addGems)
+  // Оплата звёздами доступна только внутри Telegram Mini App.
+  const [stars, setStars] = useState(false)
+  const [busy, setBusy] = useState(null) // id пака в процессе оплаты
+
+  useEffect(() => {
+    let alive = true
+    import('../mobile/telegram.js').then(({ canPayStars }) => {
+      if (alive) setStars(canPayStars())
+    })
+    return () => { alive = false }
+  }, [])
+
+  async function payStars(packId) {
+    if (busy) return
+    setBusy(packId)
+    try {
+      const [{ createStarsInvoice, claimStarsGems }, { openInvoice }] = await Promise.all([
+        import('../mobile/cloud.js'),
+        import('../mobile/telegram.js'),
+      ])
+      const link = await createStarsInvoice(packId)
+      if (!link) { setBusy(null); return }
+      const status = await openInvoice(link)
+      if (status === 'paid') {
+        // Гемы начисляет сервер по webhook — забираем их (с небольшим ретраем).
+        let got = 0
+        for (let i = 0; i < 6 && got === 0; i++) {
+          await new Promise(r => setTimeout(r, 800))
+          got = await claimStarsGems()
+        }
+        if (got > 0) addGems(got, { silent: false })
+      }
+    } catch {}
+    setBusy(null)
+  }
+
   return (
     <div className="gems-grid">
       {GEM_PACKS.map((p, i) => (
@@ -668,13 +717,27 @@ function Gems() {
             <span>+{fmt(p.gems)}</span>
           </div>
           <div className="gp-name">{p.label}</div>
-          <button className="btn gold size-md gp-buy" onClick={() => buy(p.id)}>
-            Купить
-          </button>
+          {stars ? (
+            <button
+              className="btn stars size-md gp-buy"
+              disabled={busy === p.id}
+              onClick={() => payStars(p.id)}
+            >
+              {busy === p.id
+                ? '...'
+                : <><StarIcon size={16} /> {p.stars}</>}
+            </button>
+          ) : (
+            <button className="btn gold size-md gp-buy" onClick={() => buy(p.id)}>
+              Купить
+            </button>
+          )}
         </div>
       ))}
       <div className="hint" style={{ gridColumn: '1 / -1' }}>
-        В этой версии гемы выдаются мгновенно — для отладки и idle-прогресса.
+        {stars
+          ? 'Оплата гемов — через Telegram Stars ⭐. Гемы зачислятся сразу после оплаты.'
+          : 'Откройте игру в Telegram, чтобы покупать гемы за Telegram Stars.'}
       </div>
     </div>
   )

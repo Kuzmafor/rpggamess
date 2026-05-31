@@ -3,7 +3,19 @@ import path from 'path'
 import crypto from 'crypto'
 import { fileURLToPath } from 'url'
 import { verifyLoginWidget, verifyInitData } from './telegramAuth.js'
-import { hasDb, initDb, getSave, putSave, getLeaderboard, getRank } from './db.js'
+import { hasDb, initDb, getSave, putSave, getLeaderboard, getRank, creditGems, claimPendingGems } from './db.js'
+
+// Источник истины по гем-пакам и ценам в Telegram Stars — на сервере,
+// чтобы клиент не мог подменить цену/количество.
+const GEM_PACKS = {
+  p0: { gems: 20,    stars: 1,  label: 'Пробный' },
+  p1: { gems: 50,    stars: 1,  label: 'Стартовый' },
+  p2: { gems: 280,   stars: 2,  label: 'Любительский' },
+  p3: { gems: 720,   stars: 3,  label: 'Героический' },
+  p4: { gems: 2000,  stars: 5,  label: 'Эпический' },
+  p5: { gems: 6500,  stars: 10, label: 'Легендарный' },
+  p6: { gems: 18000, stars: 20, label: 'Архонтский' },
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
@@ -164,6 +176,96 @@ app.get('/api/leaderboard/me', requireAuth, async (req, res) => {
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, db: hasDb(), auth: !!BOT_TOKEN })
+})
+
+// ---------- Telegram Stars: оплата гемов ----------
+// Вызов Bot API.
+async function tgApi(method, payload) {
+  const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return r.json()
+}
+
+// Создать ссылку на оплату гем-пака за Telegram Stars (валюта XTR).
+// Клиент (Mini App) откроет её через Telegram.WebApp.openInvoice.
+app.post('/api/stars/invoice', requireAuth, async (req, res) => {
+  if (!BOT_TOKEN) return res.status(503).json({ error: 'payments_unavailable' })
+  const { packId } = req.body || {}
+  const pack = GEM_PACKS[packId]
+  if (!pack) return res.status(400).json({ error: 'bad_pack' })
+  try {
+    // payload вернётся к нам в successful_payment — кладём id игрока и пак.
+    const payload = JSON.stringify({ tgId: req.tgId, packId })
+    const resp = await tgApi('createInvoiceLink', {
+      title: `${pack.gems} гемов`,
+      description: `Пакет «${pack.label}» — ${pack.gems} гемов для Blade of Fate`,
+      payload,
+      currency: 'XTR',                 // Telegram Stars
+      prices: [{ label: `${pack.gems} гемов`, amount: pack.stars }],
+    })
+    if (!resp.ok) {
+      console.error('createInvoiceLink error', resp)
+      return res.status(502).json({ error: 'invoice_failed' })
+    }
+    res.json({ link: resp.result })
+  } catch (e) {
+    console.error('invoice error', e)
+    res.status(500).json({ error: 'server_error' })
+  }
+})
+
+// Забрать гемы, начисленные после успешной оплаты (клиент опрашивает после
+// закрытия окна оплаты и периодически при синхронизации).
+app.get('/api/stars/pending', requireAuth, async (req, res) => {
+  if (!hasDb()) return res.json({ gems: 0 })
+  try {
+    const gems = await claimPendingGems(req.tgId)
+    res.json({ gems })
+  } catch (e) {
+    console.error('pending gems error', e)
+    res.status(500).json({ error: 'server_error' })
+  }
+})
+
+// Webhook Telegram: обязателен для приёма платежей.
+// Telegram шлёт сюда pre_checkout_query (нужно подтвердить за 10 сек) и
+// successful_payment (начисляем гемы). Защита — секретный токен в пути.
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'hook'
+app.post(`/api/tg/webhook/${WEBHOOK_SECRET}`, async (req, res) => {
+  const update = req.body || {}
+  try {
+    // 1) Предпроверка перед списанием звёзд — отвечаем ok.
+    if (update.pre_checkout_query) {
+      await tgApi('answerPreCheckoutQuery', {
+        pre_checkout_query_id: update.pre_checkout_query.id,
+        ok: true,
+      })
+      return res.json({ ok: true })
+    }
+    // 2) Успешная оплата — начисляем гемы.
+    const sp = update.message?.successful_payment
+    if (sp) {
+      let payload = {}
+      try { payload = JSON.parse(sp.invoice_payload || '{}') } catch {}
+      const pack = GEM_PACKS[payload.packId]
+      const tgId = Number(payload.tgId) || update.message.from?.id
+      if (pack && tgId) {
+        await creditGems(tgId, pack.gems, {
+          chargeId: sp.telegram_payment_charge_id,
+          packId: payload.packId,
+          stars: pack.stars,
+        })
+      }
+      return res.json({ ok: true })
+    }
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('webhook error', e)
+    res.json({ ok: true }) // всегда 200, чтобы Telegram не ретраил бесконечно
+  }
 })
 
 // ---------- Статика игры ----------

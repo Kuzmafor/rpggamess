@@ -119,3 +119,23 @@ export function getInitDataRaw() {
 
 // Ссылка на бота для приглашения играть из обычного браузера.
 export const BOT_URL = 'https://t.me/bladeoffatebot'
+
+// Открыть окно оплаты Telegram Stars по ссылке-инвойсу.
+// Возвращает Promise со статусом: 'paid' | 'cancelled' | 'failed' | 'pending'.
+export function openInvoice(link) {
+  const wa = getWebApp()
+  return new Promise((resolve) => {
+    if (!wa || !wa.openInvoice) { resolve('unsupported'); return }
+    try {
+      wa.openInvoice(link, (status) => resolve(status))
+    } catch {
+      resolve('failed')
+    }
+  })
+}
+
+// Поддерживается ли оплата звёздами (мы внутри Telegram с нужным API).
+export function canPayStars() {
+  const wa = getWebApp()
+  return !!(wa && typeof wa.openInvoice === 'function')
+}

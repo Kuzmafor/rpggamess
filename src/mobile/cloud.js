@@ -115,3 +115,37 @@ export async function fetchMyRank() {
     return null
   }
 }
+
+// Создать ссылку на оплату гем-пака за Telegram Stars. Возвращает URL или null.
+export async function createStarsInvoice(packId) {
+  const token = getToken()
+  if (!token) return null
+  try {
+    const r = await fetch(url('/api/stars/invoice'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ packId }),
+    })
+    if (!r.ok) return null
+    const data = await r.json()
+    return data?.link || null
+  } catch {
+    return null
+  }
+}
+
+// Забрать гемы, начисленные после оплаты звёздами. Возвращает число гемов.
+export async function claimStarsGems() {
+  const token = getToken()
+  if (!token) return 0
+  try {
+    const r = await fetch(url('/api/stars/pending'), {
+      headers: { Authorization: 'Bearer ' + token },
+    })
+    if (!r.ok) return 0
+    const data = await r.json()
+    return Number(data?.gems) || 0
+  } catch {
+    return 0
+  }
+}

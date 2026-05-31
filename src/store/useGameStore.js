@@ -193,13 +193,15 @@ export const CONVERTS = {
 }
 
 export const GEM_PACKS = [
-  { id: 'p0', gems: 20,    label: 'Пробный',     tag: '' },
-  { id: 'p1', gems: 50,    label: 'Стартовый',   tag: '' },
-  { id: 'p2', gems: 280,   label: 'Любительский', tag: '+12%' },
-  { id: 'p3', gems: 720,   label: 'Героический',  tag: '+20%' },
-  { id: 'p4', gems: 2000,  label: 'Эпический',    tag: '+30%' },
-  { id: 'p5', gems: 6500,  label: 'Легендарный',  tag: '+45%' },
-  { id: 'p6', gems: 18000, label: 'Архонтский',   tag: '+60%' },
+  // stars — цена в Telegram Stars (минимум для оплаты — 1 звезда).
+  // Держим донат максимально дешёвым.
+  { id: 'p0', gems: 20,    label: 'Пробный',     tag: '',     stars: 1 },
+  { id: 'p1', gems: 50,    label: 'Стартовый',   tag: '',     stars: 1 },
+  { id: 'p2', gems: 280,   label: 'Любительский', tag: '+12%', stars: 2 },
+  { id: 'p3', gems: 720,   label: 'Героический',  tag: '+20%', stars: 3 },
+  { id: 'p4', gems: 2000,  label: 'Эпический',    tag: '+30%', stars: 5 },
+  { id: 'p5', gems: 6500,  label: 'Легендарный',  tag: '+45%', stars: 10 },
+  { id: 'p6', gems: 18000, label: 'Архонтский',   tag: '+60%', stars: 20 },
 ]
 
 // Промокоды (UPPERCASE). Награды приходят письмом.
@@ -3764,13 +3766,24 @@ export const useGameStore = create((set, get) => {
       return true
     },
 
-    // Покупка пакета гемов (имитация)
+    // Покупка пакета гемов (имитация — для браузера/демо без оплаты)
     buyGemPack(packId) {
       const s = get()
       const p = GEM_PACKS.find(x => x.id === packId)
       if (!p) return false
       set({ gems: s.gems + p.gems })
       get()._toast?.(`+${p.gems}💎 куплено`)
+      saveState(get())
+      return true
+    },
+
+    // Прямое начисление гемов (после оплаты Telegram Stars).
+    addGems(n, opts = {}) {
+      const amount = Math.max(0, Math.floor(Number(n) || 0))
+      if (amount <= 0) return false
+      const s = get()
+      set({ gems: s.gems + amount })
+      if (!opts.silent) get()._toast?.(`+${amount}💎 зачислено`)
       saveState(get())
       return true
     },

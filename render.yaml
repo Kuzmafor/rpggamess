@@ -17,6 +17,9 @@ services:
       # Секрет для подписи сессий — Render сгенерирует случайное значение.
       - key: SESSION_SECRET
         generateValue: true
+      # Секрет в URL вебхука Telegram (для приёма платежей Stars).
+      - key: WEBHOOK_SECRET
+        generateValue: true
       # Строка подключения к базе берётся автоматически из созданной БД.
       - key: DATABASE_URL
         fromDatabase:

@@ -45,6 +45,65 @@ export async function initDb() {
   await p.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS prestige INT NOT NULL DEFAULT 0`)
   await p.query(`ALTER TABLE saves ADD COLUMN IF NOT EXISTS ng_level INT NOT NULL DEFAULT 0`)
   await p.query(`CREATE INDEX IF NOT EXISTS saves_score_idx ON saves (score DESC)`)
+
+  // Очередь начисления гемов после оплаты Telegram Stars. Гемы кладём сюда
+  // при successful_payment, а клиент забирает их при следующей синхронизации.
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS pending_gems (
+      tg_id      BIGINT PRIMARY KEY,
+      gems       BIGINT NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `)
+  // Лог платежей — защита от повторной обработки одного платежа.
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS payments (
+      charge_id  TEXT PRIMARY KEY,
+      tg_id      BIGINT NOT NULL,
+      pack_id    TEXT,
+      stars      INT,
+      gems       BIGINT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `)
+}
+
+// Добавить гемы в очередь начисления игроку (после оплаты).
+// Идемпотентно по charge_id: повторный платёж не начислится дважды.
+export async function creditGems(tgId, gems, payment = {}) {
+  const p = getPool()
+  if (!p) return false
+  const chargeId = payment.chargeId || ('manual_' + tgId + '_' + Date.now())
+  // Пишем платёж; при конфликте (повтор) — выходим, не начисляя повторно.
+  const ins = await p.query(
+    `INSERT INTO payments (charge_id, tg_id, pack_id, stars, gems)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (charge_id) DO NOTHING`,
+    [chargeId, tgId, payment.packId || null, payment.stars || null, gems],
+  )
+  if (ins.rowCount === 0) return false // уже обработан
+  await p.query(
+    `INSERT INTO pending_gems (tg_id, gems, updated_at)
+     VALUES ($1, $2, now())
+     ON CONFLICT (tg_id) DO UPDATE SET gems = pending_gems.gems + EXCLUDED.gems, updated_at = now()`,
+    [tgId, gems],
+  )
+  return true
+}
+
+// Забрать (и обнулить) накопленные гемы игрока. Возвращает число гемов.
+export async function claimPendingGems(tgId) {
+  const p = getPool()
+  if (!p) return 0
+  // Атомарно: читаем текущее значение и обнуляем одним запросом через CTE.
+  const r = await p.query(
+    `WITH cur AS (SELECT gems FROM pending_gems WHERE tg_id = $1 FOR UPDATE)
+     UPDATE pending_gems SET gems = 0, updated_at = now()
+     WHERE tg_id = $1
+     RETURNING (SELECT gems FROM cur) AS taken`,
+    [tgId],
+  )
+  return r.rows.length ? Number(r.rows[0].taken) || 0 : 0
 }
 
 // Прочитать сейв игрока. Возвращает { data, savedAt } или null.

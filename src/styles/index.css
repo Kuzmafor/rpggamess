@@ -1099,6 +1099,23 @@ button {
 }
 .btn.neon:hover { box-shadow: 0 10px 24px rgba(124, 92, 255, 0.6); }
 
+/* stars — оплата через Telegram Stars */
+.btn.stars {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: linear-gradient(180deg, #2aabee 0%, #1c87c4 100%);
+  color: #fff;
+  border-color: rgba(255,255,255,0.22);
+  font-weight: 800;
+  box-shadow:
+    0 6px 16px rgba(42, 171, 238, 0.42),
+    inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.btn.stars:hover { box-shadow: 0 10px 22px rgba(42, 171, 238, 0.55); }
+.btn.stars svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
+
 /* ghost — стеклянный */
 .btn.ghost {
   background: var(--surf-1);
