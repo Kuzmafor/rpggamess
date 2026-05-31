@@ -823,7 +823,8 @@ export const useGameStore = create((set, get) => {
       const s = get()
       const base = s.baseDmg + (s.tapLevel - 1) * 1.6
       const heroDmg = 1 + s.getBonuses().dmg
-      const dmg = base * s.getWeaponMult() * heroDmg
+      const tapBonus = 1 + (talentBonuses(s.talents || {}).tap || 0)
+      const dmg = base * s.getWeaponMult() * heroDmg * tapBonus
       const superMult = s.superActive ? 5 : 1
       const boost = activeBoostMult(s.boosts, 'dmg')
       return Math.max(1, Math.round(dmg * superMult * boost))
@@ -1219,12 +1220,13 @@ export const useGameStore = create((set, get) => {
           ngBumped = true
         }
         const nextMax = Math.max(s.maxStage || s.stage, nextStage)
-        // если открыта новая зона — даём очко талантов
-        const tpDelta = (nextMax > (s.maxStage || s.stage)) ? 1 : 0
-        // дополнительно — за убийство босса даём ещё 1 очко
-        const tpBoss = target.isBoss ? 1 : 0
-        // За завершение витка — щедрая награда: +5 талантов, +1 души
-        const ngTp = ngBumped ? 5 : 0
+        // если открыта новая зона — даём очки талантов (увеличено для более
+        // активной прокачки дерева талантов)
+        const tpDelta = (nextMax > (s.maxStage || s.stage)) ? 2 : 0
+        // дополнительно — за убийство босса даём ещё очки
+        const tpBoss = target.isBoss ? 2 : 0
+        // За завершение витка — щедрая награда: +10 талантов, +1 души
+        const ngTp = ngBumped ? 10 : 0
         const ngSouls = ngBumped ? 1 : 0
         set({
           gold: s.gold + goldGain,
@@ -1240,9 +1242,9 @@ export const useGameStore = create((set, get) => {
           talentEarned: (s.talentEarned || 0) + tpDelta + tpBoss + ngTp,
           souls: (s.souls || 0) + ngSouls,
         })
-        if (target.isBoss) get()._toast?.(`Босс повержен! +${goldGain}🪙 +1💎 +1 очко таланта`)
-        if (tpDelta > 0) get()._toast?.('Открыта новая зона! +1 очко таланта')
-        if (ngBumped) get()._toast?.(`Виток ${nextNg + 1}! +5 талантов, +1 душа · враги стали сильнее`)
+        if (target.isBoss) get()._toast?.(`Босс повержен! +${goldGain}🪙 +1💎 +2 очка таланта`)
+        if (tpDelta > 0) get()._toast?.('Открыта новая зона! +2 очка таланта')
+        if (ngBumped) get()._toast?.(`Виток ${nextNg + 1}! +10 талантов, +1 душа · враги стали сильнее`)
         // Battle Pass XP
         if (target.isBoss) get().addBpXp(200)
         else get().addBpXp(10)

@@ -100,6 +100,7 @@ export default function TalentsPanel({ onClose, embedded = false }) {
 
 function describeEffect(node) {
   const parts = []
+  if (node.tap)     parts.push(`+${pct(node.tap)} к урону тапа`)
   if (node.dmg)     parts.push(`+${pct(node.dmg)} к урону`)
   if (node.gold)    parts.push(`+${pct(node.gold)} к золоту`)
   if (node.crit)    parts.push(`+${pct(node.crit)} к криту`)
