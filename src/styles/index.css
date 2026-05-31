@@ -8223,7 +8223,9 @@ html, body { overflow: hidden; }
   position: fixed;
   inset: 0;
   z-index: 200;                /* выше загрузочного экрана (z-index:100) */
-  background: #000;
+  /* Фон экрана под цвет подложки логотипа — рамка картинки сливается с ним. */
+  background:
+    radial-gradient(120% 90% at 50% 45%, #131a3a 0%, #0c1130 55%, #080b22 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8265,11 +8267,6 @@ html, body { overflow: hidden; }
   width: auto;
   height: auto;
   object-fit: contain;
-  /* Растворяем прямоугольную рамку картинки в чёрный фон через радиальную
-     маску: центр непрозрачный, края плавно уходят в прозрачность —
-     видно только светящийся логотип и текст, без видимой подложки. */
-  -webkit-mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, #000 56%, transparent 82%);
-  mask-image: radial-gradient(ellipse 72% 72% at 50% 50%, #000 56%, transparent 82%);
   /* стартовое состояние — невидим и чуть уменьшен */
   opacity: 0;
   transform: scale(0.8) translateY(6px);
