@@ -99,6 +99,7 @@ export default function App() {
     let last = performance.now()
     let lastInput = Date.now()
     let visible = !document.hidden
+    let slowAcc = 0   // аккумулятор времени для фоновых тиков (~10 Гц)
     let raf
 
     const onVis = () => { visible = !document.hidden; last = performance.now(); lastInput = Date.now() }
@@ -111,17 +112,30 @@ export default function App() {
     const loop = (now) => {
       const dt = now - last
       last = now
+
+      // Когда вкладка скрыта — не крутим тяжёлые тики (экономим CPU/батарею).
+      if (!visible) {
+        raf = requestAnimationFrame(loop)
+        return
+      }
+
+      // Боевые тики — каждый кадр (плавность анимаций).
       tickPassive(dt)
       tickParty(dt)
       tickStatuses(dt)
-      tickRaid()
-      tickTower(dt)
-      tickBossRush()
-      tickCity(dt)
-      // активность считаем только когда вкладка видима и пользователь не AFK >5 минут
-      const idle = Date.now() - lastInput
-      if (visible && idle < 5 * 60 * 1000) {
-        tickActivity(dt)
+
+      // Фоновые системы не нуждаются в 60 FPS — обновляем ~10 раз/сек.
+      // Это заметно снижает нагрузку на слабых устройствах без потери логики.
+      slowAcc += dt
+      if (slowAcc >= 100) {
+        tickRaid()
+        tickTower(slowAcc)
+        tickBossRush()
+        tickCity(slowAcc)
+        // активность считаем только когда не AFK >5 минут
+        const idle = Date.now() - lastInput
+        if (idle < 5 * 60 * 1000) tickActivity(slowAcc)
+        slowAcc = 0
       }
       raf = requestAnimationFrame(loop)
     }

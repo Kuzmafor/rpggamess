@@ -531,116 +531,107 @@ function estimate(kind, levelStart, gold, mult) {
 }
 
 /* ===================== ОБМЕН ===================== */
+// Описание вариантов обмена: ключ из CONVERTS → подпись, что получаем.
+const CONVERT_OPTIONS = [
+  { key: 'gold',     title: 'Обмен на золото',          icon: 'gold',     out: '5 000', big: false },
+  { key: 'shards',   title: 'Обмен на осколки',         icon: 'artifact', out: '2 осколка', big: false },
+  { key: 'ore',      title: 'Обмен на руду',            icon: 'ore',      out: '25 руды', big: false },
+  { key: 'gold_l',   title: 'Крупный обмен на золото',  icon: 'gold',     out: '30 000', big: true },
+  { key: 'shards_l', title: 'Крупный обмен на осколки', icon: 'artifact', out: '12 осколков', big: true },
+  { key: 'ore_l',    title: 'Крупный обмен на руду',    icon: 'ore',      out: '150 руды', big: true },
+  { key: 'gold_xl',  title: 'Огромный обмен на золото', icon: 'gold',     out: '150 000', big: true },
+  { key: 'shards_xl',title: 'Огромный обмен на осколки',icon: 'artifact', out: '55 осколков', big: true },
+  { key: 'ore_xl',   title: 'Огромный обмен на руду',   icon: 'ore',      out: '700 руды', big: true },
+]
+
+// Рейдовые материалы, которые можно переплавить в золото (сток для излишков).
+const MELT_MATS = [
+  { key: 'dragon',    label: 'Чешуя дракона',     icon: 'scale' },
+  { key: 'lich',      label: 'Эссенция лича',     icon: 'skull' },
+  { key: 'golem',     label: 'Ядро голема',       icon: 'rock' },
+  { key: 'titan',     label: 'Грозовой кристалл', icon: 'bolt' },
+  { key: 'hydra',     label: 'Иней гидры',        icon: 'gem' },
+  { key: 'archon',    label: 'Тень архонта',      icon: 'artifact' },
+  { key: 'demon',     label: 'Пепел демона',      icon: 'flame' },
+  { key: 'phoenix',   label: 'Перо феникса',      icon: 'crown' },
+  { key: 'warden',    label: 'Реликвия стража',   icon: 'crown' },
+  { key: 'leviathan', label: 'Чернильное ядро',   icon: 'gem' },
+  { key: 'seraph',    label: 'Перо серафима',     icon: 'crown' },
+  { key: 'voidlord',  label: 'Осколок пустоты',   icon: 'artifact' },
+  { key: 'titanforge',label: 'Молот мироздания',  icon: 'bolt' },
+]
+
 function Convert() {
-  const [gold, setGold] = useState(1)
-  const [shards, setShards] = useState(1)
-  const [ore, setOre] = useState(1)
-  const [goldL, setGoldL] = useState(1)
-  const [shardsL, setShardsL] = useState(1)
   const gems = useGameStore(s => s.gems)
   const convert = useGameStore(s => s.convertGems)
+  const mats = useGameStore(s => s.mats || {})
+  const melt = useGameStore(s => s.meltMaterial)
+  const [qty, setQty] = useState({}) // { [key]: множитель }
+
+  const getQ = (k) => qty[k] || 1
+  const setQ = (k, v) => setQty(prev => ({ ...prev, [k]: Math.max(1, v) }))
+
+  // Материалы рейдов, которых у игрока есть хотя бы 1 — их можно переплавить.
+  const ownedMats = MELT_MATS.filter(m => (mats[m.key] || 0) > 0)
 
   return (
     <div className="shop-list">
-      <div className="shop-card convert">
-        <div className="convert-art"><Icon name="gold" size={36} /></div>
-        <div className="shop-meta">
-          <div className="shop-title">Обмен на золото</div>
-          <div className="shop-desc">1 <Icon name="gem" size={12} /> = 5 000 <Icon name="gold" size={12} /></div>
-          <div className="qty-row">
-            <button className="qty-btn" onClick={() => setGold(Math.max(1, gold - 1))}>−</button>
-            <span className="qty-value">×{gold}</span>
-            <button className="qty-btn" onClick={() => setGold(gold + 1)}>+</button>
+      {/* Переплавка рейдовых материалов в золото */}
+      {ownedMats.length > 0 && (
+        <div className="convert-section-title">Переплавка материалов</div>
+      )}
+      {ownedMats.map(m => {
+        const have = mats[m.key] || 0
+        return (
+          <div key={m.key} className="shop-card convert">
+            <div className="convert-art"><Icon name={m.icon} size={36} /></div>
+            <div className="shop-meta">
+              <div className="shop-title">{m.label}</div>
+              <div className="shop-desc">В наличии: <b>{fmt(have)}</b> · переплавка в золото</div>
+            </div>
+            <button
+              className="btn gold size-md"
+              onClick={() => melt(m.key, have)}
+            >
+              <Icon name="gold" size={14} /> Переплавить
+            </button>
           </div>
-        </div>
-        <button
-          className="btn primary size-md"
-          disabled={gems < gold}
-          onClick={() => convert('gold', gold)}
-        >
-          <Icon name="gem" size={14} /> {gold} → {fmt(gold * 5000)}
-        </button>
-      </div>
+        )
+      })}
 
-      <div className="shop-card convert">
-        <div className="convert-art"><Icon name="artifact" size={36} /></div>
-        <div className="shop-meta">
-          <div className="shop-title">Обмен на осколки</div>
-          <div className="shop-desc">1 <Icon name="gem" size={12} /> = 2 осколка артефактов</div>
-          <div className="qty-row">
-            <button className="qty-btn" onClick={() => setShards(Math.max(1, shards - 1))}>−</button>
-            <span className="qty-value">×{shards}</span>
-            <button className="qty-btn" onClick={() => setShards(shards + 1)}>+</button>
+      {ownedMats.length > 0 && (
+        <div className="convert-section-title">Обмен гемов</div>
+      )}
+      {CONVERT_OPTIONS.map(opt => {
+        const def = CONVERTS[opt.key]
+        if (!def) return null
+        const q = getQ(opt.key)
+        const totalCost = def.cost * q
+        const totalOut = def.amount * q
+        return (
+          <div key={opt.key} className="shop-card convert">
+            <div className="convert-art"><Icon name={opt.icon} size={36} /></div>
+            <div className="shop-meta">
+              <div className="shop-title">{opt.title}</div>
+              <div className="shop-desc">
+                {def.cost} <Icon name="gem" size={12} /> = {opt.out} <Icon name={opt.icon} size={12} />
+              </div>
+              <div className="qty-row">
+                <button className="qty-btn" onClick={() => setQ(opt.key, q - 1)}>−</button>
+                <span className="qty-value">×{q}</span>
+                <button className="qty-btn" onClick={() => setQ(opt.key, q + 1)}>+</button>
+              </div>
+            </div>
+            <button
+              className={'btn size-md ' + (opt.big ? 'neon' : 'primary')}
+              disabled={gems < totalCost}
+              onClick={() => convert(opt.key, q)}
+            >
+              <Icon name="gem" size={14} /> {totalCost} → {fmt(totalOut)}
+            </button>
           </div>
-        </div>
-        <button
-          className="btn primary size-md"
-          disabled={gems < shards}
-          onClick={() => convert('shards', shards)}
-        >
-          <Icon name="gem" size={14} /> {shards} → {shards * 2}
-        </button>
-      </div>
-
-      <div className="shop-card convert">
-        <div className="convert-art"><Icon name="ore" size={36} /></div>
-        <div className="shop-meta">
-          <div className="shop-title">Обмен на руду</div>
-          <div className="shop-desc">1 <Icon name="gem" size={12} /> = 25 руды</div>
-          <div className="qty-row">
-            <button className="qty-btn" onClick={() => setOre(Math.max(1, ore - 1))}>−</button>
-            <span className="qty-value">×{ore}</span>
-            <button className="qty-btn" onClick={() => setOre(ore + 1)}>+</button>
-          </div>
-        </div>
-        <button
-          className="btn primary size-md"
-          disabled={gems < ore}
-          onClick={() => convert('ore', ore)}
-        >
-          <Icon name="gem" size={14} /> {ore} → {ore * 25}
-        </button>
-      </div>
-
-      <div className="shop-card convert">
-        <div className="convert-art"><Icon name="gold" size={36} /></div>
-        <div className="shop-meta">
-          <div className="shop-title">Крупный обмен на золото</div>
-          <div className="shop-desc">5 <Icon name="gem" size={12} /> = 30 000 <Icon name="gold" size={12} /></div>
-          <div className="qty-row">
-            <button className="qty-btn" onClick={() => setGoldL(Math.max(1, goldL - 1))}>−</button>
-            <span className="qty-value">×{goldL}</span>
-            <button className="qty-btn" onClick={() => setGoldL(goldL + 1)}>+</button>
-          </div>
-        </div>
-        <button
-          className="btn neon size-md"
-          disabled={gems < goldL * 5}
-          onClick={() => convert('gold_l', goldL)}
-        >
-          <Icon name="gem" size={14} /> {goldL * 5} → {fmt(goldL * 30000)}
-        </button>
-      </div>
-
-      <div className="shop-card convert">
-        <div className="convert-art"><Icon name="artifact" size={36} /></div>
-        <div className="shop-meta">
-          <div className="shop-title">Крупный обмен на осколки</div>
-          <div className="shop-desc">5 <Icon name="gem" size={12} /> = 12 осколков</div>
-          <div className="qty-row">
-            <button className="qty-btn" onClick={() => setShardsL(Math.max(1, shardsL - 1))}>−</button>
-            <span className="qty-value">×{shardsL}</span>
-            <button className="qty-btn" onClick={() => setShardsL(shardsL + 1)}>+</button>
-          </div>
-        </div>
-        <button
-          className="btn neon size-md"
-          disabled={gems < shardsL * 5}
-          onClick={() => convert('shards_l', shardsL)}
-        >
-          <Icon name="gem" size={14} /> {shardsL * 5} → {shardsL * 12}
-        </button>
-      </div>
+        )
+      })}
     </div>
   )
 }

@@ -190,6 +190,10 @@ export const CONVERTS = {
   ore:     { cost: 1, amount: 25,    label: '25 руды',         icon: 'ore' },
   gold_l:  { cost: 5, amount: 30000, label: '30 000 золота',   icon: 'gold' },
   shards_l:{ cost: 5, amount: 12,    label: '12 осколков',     icon: 'artifact' },
+  ore_l:   { cost: 5, amount: 150,   label: '150 руды',        icon: 'ore' },
+  gold_xl: { cost: 20, amount: 150000, label: '150 000 золота', icon: 'gold' },
+  shards_xl:{ cost: 20, amount: 55,  label: '55 осколков',     icon: 'artifact' },
+  ore_xl:  { cost: 20, amount: 700,  label: '700 руды',        icon: 'ore' },
 }
 
 export const GEM_PACKS = [
@@ -222,6 +226,7 @@ const DEFAULT_STATE = {
   mats: {
     dragon: 0, lich: 0, golem: 0,
     titan: 0, hydra: 0, archon: 0, demon: 0, phoenix: 0, warden: 0,
+    leviathan: 0, seraph: 0, voidlord: 0, titanforge: 0,
   },
 
   // прогресс боя
@@ -590,6 +595,7 @@ export const useGameStore = create((set, get) => {
   initial.mats = {
     dragon: 0, lich: 0, golem: 0,
     titan: 0, hydra: 0, archon: 0, demon: 0, phoenix: 0, warden: 0,
+    leviathan: 0, seraph: 0, voidlord: 0, titanforge: 0,
     ...(initial.mats || {}),
   }
   // престиж/таланты — миграция
@@ -3759,9 +3765,35 @@ export const useGameStore = create((set, get) => {
       if (s.gems < total) return false
       const result = def.amount * amount
       const next = { gems: s.gems - total }
-      if (target === 'gold')   next.gold = s.gold + result
-      if (target === 'shards') next.artifactShards = s.artifactShards + result
+      // Тип ресурса определяем по префиксу ключа обмена.
+      if (target.startsWith('gold'))   next.gold = s.gold + result
+      if (target.startsWith('shards')) next.artifactShards = s.artifactShards + result
+      if (target.startsWith('ore'))    next.ore = (s.ore || 0) + result
       set(next)
+      saveState(get())
+      return true
+    },
+
+    // Переплавка рейдовых материалов в золото (полезный сток для лишних
+    // материалов). Сумма масштабируется по прогрессу игрока. amount — сколько
+    // единиц материала matKey переплавить.
+    meltMaterial(matKey, amount = 1) {
+      const s = get()
+      const have = s.mats?.[matKey] || 0
+      const n = Math.min(have, Math.max(1, Math.floor(amount)))
+      if (n <= 0) return false
+      // Базовая ценность материала растёт по его позиции в списке рейдов.
+      const order = ['dragon','lich','golem','titan','hydra','archon','demon','phoenix','warden','leviathan','seraph','voidlord','titanforge']
+      const tier = Math.max(0, order.indexOf(matKey))
+      const base = 8000 * Math.pow(2.4, tier)   // от 8К до огромных значений
+      const scale = rewardScale({ stage: s.stage, maxStage: s.maxStage, ngLevel: s.ngLevel })
+      const gold = Math.floor(base * scale * n)
+      set({
+        gold: s.gold + gold,
+        mats: { ...s.mats, [matKey]: have - n },
+      })
+      get()._bumpGoldEarned(gold)
+      get()._toast?.(`Переплавлено: +${fmtSimple(gold)}🪙`)
       saveState(get())
       return true
     },

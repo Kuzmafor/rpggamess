@@ -20,6 +20,8 @@ export const RARITY_INFO = {
   rare:      { label: 'Редкий',      color: '#67d6ff', affixes: 2, mult: 1.4 },
   epic:      { label: 'Эпический',   color: '#a072ff', affixes: 3, mult: 1.9 },
   legendary: { label: 'Легендарный', color: '#ffd166', affixes: 3, mult: 2.6 },
+  mythic:    { label: 'Мифический',  color: '#ff5470', affixes: 4, mult: 3.6 },
+  premium:   { label: 'Премиум',     color: '#ff8edb', affixes: 4, mult: 4.6 },
 }
 
 // ===== Аффиксы =====

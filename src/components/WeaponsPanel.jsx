@@ -13,13 +13,19 @@ const RARITY_LABEL = {
   rare: 'Редкий',
   epic: 'Эпический',
   legendary: 'Легендарный',
+  mythic: 'Мифический',
+  premium: 'Премиум',
 }
 const RARITY_COLOR = {
   common: '#c8cee8',
   rare: '#67d6ff',
   epic: '#a072ff',
   legendary: '#ffd166',
+  mythic: '#ff5470',
+  premium: '#ff8edb',
 }
+// Порядок редкости (выше — лучше) для сортировки.
+const RARITY_RANK = { common: 0, rare: 1, epic: 2, legendary: 3, mythic: 4, premium: 5 }
 
 export default function WeaponsPanel({ onClose }) {
   const [tab, setTab] = useState('catalog')
@@ -49,13 +55,33 @@ export default function WeaponsPanel({ onClose }) {
 function Catalog() {
   const bag = useGameStore(s => s.gearBag || [])
   const ownedIds = new Set(bag.map(g => g.catalogId).filter(Boolean))
-  const order = ['legendary', 'epic', 'rare', 'common']
-  const byRarity = order.reduce((acc, r) => {
-    acc[r] = WEAPON_CATALOG.filter(w => w.rarity === r)
-    return acc
-  }, {})
+
+  // Сортировка и фильтр каталога.
+  const [sort, setSort] = useState('rarity')  // rarity | rarity_asc | name
+  const [filter, setFilter] = useState('all')  // all | owned | missing | shop
+
+  const order = ['premium', 'mythic', 'legendary', 'epic', 'rare', 'common']
   const total = WEAPON_CATALOG.length
   const owned = WEAPON_CATALOG.filter(w => ownedIds.has(w.id)).length
+
+  // Применяем фильтр.
+  let list = WEAPON_CATALOG.filter(w => {
+    if (filter === 'owned')   return ownedIds.has(w.id)
+    if (filter === 'missing') return !ownedIds.has(w.id)
+    if (filter === 'shop')    return !!w.inShop
+    return true
+  })
+
+  // Группировка по редкости (для режима rarity) или плоский отсортированный список.
+  const grouped = sort === 'name'
+    ? null
+    : (() => {
+        const ord = sort === 'rarity_asc' ? [...order].reverse() : order
+        return ord.map(r => ({ r, items: list.filter(w => w.rarity === r) })).filter(g => g.items.length)
+      })()
+  const flat = sort === 'name'
+    ? [...list].sort((a, b) => a.name.localeCompare(b.name))
+    : null
 
   return (
     <div className="catalog-scroll">
@@ -65,50 +91,72 @@ function Catalog() {
         в Магазине за алмазы.
       </div>
 
-      {order.map(r => {
-        const list = byRarity[r] || []
-        if (list.length === 0) return null
-        return (
-          <section key={r} className="cat-section">
-            <header className="cat-head">
-              <span className={'chip rar-' + r} style={{ color: RARITY_COLOR[r] }}>
-                {RARITY_LABEL[r]}
-              </span>
-              <span className="cat-count">{list.filter(w => ownedIds.has(w.id)).length} / {list.length}</span>
-            </header>
-            <div className="weapons-grid">
-              {list.map(w => {
-                const have = ownedIds.has(w.id)
-                return (
-                  <div
-                    key={w.id}
-                    className={'weapon-shop-card rarity-' + r + (have ? '' : ' locked')}
-                    style={{ '--ac': RARITY_COLOR[r] }}
-                  >
-                    <div className="weapon-shop-art">
-                      <span className="weapon-shop-icon">{w.icon}</span>
-                    </div>
-                    <div className="weapon-shop-meta">
-                      <div className="weapon-shop-name">
-                        {w.name}
-                        {have && <span className="catalog-found">✓ Найдено</span>}
-                      </div>
-                      <ul className="weapon-shop-affixes">
-                        {w.affixes.map((af, i) => <li key={i}>{describeAffix(af)}</li>)}
-                      </ul>
-                      {w.inShop && (
-                        <div className="catalog-shop-tag">
-                          В Магазине: <Icon name="gem" size={11} /> {w.cost}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )
-      })}
+      {/* Сортировка и фильтр */}
+      <div className="cat-controls">
+        <div className="cat-control-group">
+          <span className="cat-control-label">Сорт.</span>
+          <button className={'cat-chip' + (sort === 'rarity' ? ' active' : '')} onClick={() => setSort('rarity')}>Редкость ↓</button>
+          <button className={'cat-chip' + (sort === 'rarity_asc' ? ' active' : '')} onClick={() => setSort('rarity_asc')}>Редкость ↑</button>
+          <button className={'cat-chip' + (sort === 'name' ? ' active' : '')} onClick={() => setSort('name')}>По имени</button>
+        </div>
+        <div className="cat-control-group">
+          <span className="cat-control-label">Фильтр</span>
+          <button className={'cat-chip' + (filter === 'all' ? ' active' : '')} onClick={() => setFilter('all')}>Все</button>
+          <button className={'cat-chip' + (filter === 'owned' ? ' active' : '')} onClick={() => setFilter('owned')}>Найдено</button>
+          <button className={'cat-chip' + (filter === 'missing' ? ' active' : '')} onClick={() => setFilter('missing')}>Нет</button>
+          <button className={'cat-chip' + (filter === 'shop' ? ' active' : '')} onClick={() => setFilter('shop')}>В магазине</button>
+        </div>
+      </div>
+
+      {flat && (
+        <div className="weapons-grid">
+          {flat.map(w => <WeaponCatalogCard key={w.id} w={w} have={ownedIds.has(w.id)} />)}
+          {flat.length === 0 && <div className="hint">Ничего не найдено по фильтру.</div>}
+        </div>
+      )}
+
+      {grouped && grouped.map(({ r, items }) => (
+        <section key={r} className="cat-section">
+          <header className="cat-head">
+            <span className={'chip rar-' + r} style={{ color: RARITY_COLOR[r] }}>
+              {RARITY_LABEL[r]}
+            </span>
+            <span className="cat-count">{items.filter(w => ownedIds.has(w.id)).length} / {items.length}</span>
+          </header>
+          <div className="weapons-grid">
+            {items.map(w => <WeaponCatalogCard key={w.id} w={w} have={ownedIds.has(w.id)} />)}
+          </div>
+        </section>
+      ))}
+      {grouped && grouped.length === 0 && <div className="hint">Ничего не найдено по фильтру.</div>}
+    </div>
+  )
+}
+
+// Карточка оружия в каталоге.
+function WeaponCatalogCard({ w, have }) {
+  return (
+    <div
+      className={'weapon-shop-card rarity-' + w.rarity + (have ? '' : ' locked')}
+      style={{ '--ac': RARITY_COLOR[w.rarity] }}
+    >
+      <div className="weapon-shop-art">
+        <span className="weapon-shop-icon">{w.icon}</span>
+      </div>
+      <div className="weapon-shop-meta">
+        <div className="weapon-shop-name">
+          {w.name}
+          {have && <span className="catalog-found">✓ Найдено</span>}
+        </div>
+        <ul className="weapon-shop-affixes">
+          {w.affixes.map((af, i) => <li key={i}>{describeAffix(af)}</li>)}
+        </ul>
+        {w.inShop && (
+          <div className="catalog-shop-tag">
+            В Магазине: <Icon name="gem" size={11} /> {w.cost}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

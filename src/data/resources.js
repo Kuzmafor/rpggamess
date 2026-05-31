@@ -78,6 +78,10 @@ export const RESOURCE_INFO = {
   demon:   matRaid('Пепел демона',      'flame',    '#ff7a2a', 'demon',   'Демон Багрового мира'),
   phoenix: matRaid('Перо феникса',      'crown',    '#ffd166', 'phoenix', 'Феникс Бессмертный'),
   warden:  matRaid('Реликвия стража',   'crown',    '#ffe27a', 'warden',  'Страж Бесконечности'),
+  leviathan:matRaid('Чернильное ядро',  'gem',      '#3aa6ff', 'leviathan','Левиафан Глубин'),
+  seraph:  matRaid('Перо серафима',     'crown',    '#fff0c8', 'seraph',  'Падший Серафим'),
+  voidlord:matRaid('Осколок пустоты',   'artifact', '#9a6cff', 'voidlord','Владыка Пустоты'),
+  titanforge:matRaid('Молот мироздания','bolt',     '#ffd166', 'titanforge','Кузнец Титанов'),
 }
 
 function matRaid(label, icon, color, key, raidName) {

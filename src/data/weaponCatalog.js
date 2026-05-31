@@ -53,6 +53,22 @@ export const WEAPON_CATALOG = [
     affixes: [{ type: 'dmg', value: 0.25 }, { type: 'crit', value: 0.08 }, { type: 'rage', value: 0.05 }] },
   { id: 'w_archonbow',   name: 'Лук Архонта',         icon: '🌌', rarity: 'legendary',
     affixes: [{ type: 'speed', value: 0.15 }, { type: 'crit', value: 0.10 }, { type: 'dmg', value: 0.10 }] },
+
+  // ===== Mythic ===== (мощнее легендарных; часть продаётся за гемы)
+  { id: 'w_eclipse',     name: 'Клинок Затмения',     icon: '🌘', rarity: 'mythic', inShop: true, currency: 'gems', cost: 900,
+    affixes: [{ type: 'dmg', value: 0.30 }, { type: 'crit', value: 0.12 }, { type: 'speed', value: 0.12 }, { type: 'rage', value: 0.08 }] },
+  { id: 'w_starfall',    name: 'Коса Звездопада',     icon: '☄️', rarity: 'mythic',
+    affixes: [{ type: 'dmg', value: 0.34 }, { type: 'crit', value: 0.14 }, { type: 'gold', value: 0.12 }, { type: 'speed', value: 0.08 }] },
+  { id: 'w_worldsplit',  name: 'Разлом Миров',        icon: '🌋', rarity: 'mythic', inShop: true, currency: 'gems', cost: 1200,
+    affixes: [{ type: 'dmg', value: 0.32 }, { type: 'rage', value: 0.16 }, { type: 'crit', value: 0.10 }, { type: 'speed', value: 0.10 }] },
+  { id: 'w_voidpierce',  name: 'Копьё Пустоты',       icon: '🔱', rarity: 'mythic',
+    affixes: [{ type: 'crit', value: 0.18 }, { type: 'dmg', value: 0.28 }, { type: 'speed', value: 0.14 }, { type: 'rage', value: 0.06 }] },
+
+  // ===== Premium ===== (топ-редкость, только за гемы)
+  { id: 'w_celestial',   name: 'Небесный Разитель',   icon: '✨', rarity: 'premium', inShop: true, currency: 'gems', cost: 2500,
+    affixes: [{ type: 'dmg', value: 0.45 }, { type: 'crit', value: 0.18 }, { type: 'speed', value: 0.18 }, { type: 'gold', value: 0.15 }] },
+  { id: 'w_godslayer',   name: 'Богоубийца',          icon: '⚜️', rarity: 'premium', inShop: true, currency: 'gems', cost: 4000,
+    affixes: [{ type: 'dmg', value: 0.55 }, { type: 'crit', value: 0.20 }, { type: 'rage', value: 0.18 }, { type: 'speed', value: 0.15 }] },
 ]
 
 // Список оружия, доступного к покупке в Магазине.
