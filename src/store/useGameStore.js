@@ -684,6 +684,24 @@ export const useGameStore = create((set, get) => {
     }]
   }
 
+  // Одноразовая компенсация за изменение баланса талантов.
+  // Выдаётся всем игрокам один раз: проверяем по фиксированному id письма.
+  {
+    if (!Array.isArray(initial.mail)) initial.mail = []
+    const COMP_ID = 'compensation_talents_v1'
+    const already = initial.mail.some(m => m && m.id === COMP_ID)
+    if (!already) {
+      initial.mail = [{
+        id: COMP_ID,
+        title: 'Компенсация: таланты',
+        body: 'Мы переработали дерево талантов и увеличили начисление очков. Прими очки талантов и немного ресурсов в качестве компенсации. Спасибо, что играешь!',
+        gold: 50000, gems: 50, shards: 10, tp: 15,
+        ts: Date.now(),
+        claimed: false,
+      }, ...initial.mail]
+    }
+  }
+
   return {
     ...initial,
 
@@ -3021,10 +3039,10 @@ export const useGameStore = create((set, get) => {
     },
 
     // ===== почта =====
-    sendMail({ title, body, gold = 0, gems = 0, shards = 0 }) {
+    sendMail({ title, body, gold = 0, gems = 0, shards = 0, tp = 0 }) {
       const s = get()
       const id = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)
-      const item = { id, title, body, gold, gems, shards, ts: Date.now(), claimed: false }
+      const item = { id, title, body, gold, gems, shards, tp, ts: Date.now(), claimed: false }
       set({ mail: [item, ...s.mail] })
       saveState(get())
       return id
@@ -3039,6 +3057,8 @@ export const useGameStore = create((set, get) => {
         gold: s.gold + (m.gold || 0),
         gems: s.gems + (m.gems || 0),
         artifactShards: s.artifactShards + (m.shards || 0),
+        talentPoints: (s.talentPoints || 0) + (m.tp || 0),
+        talentEarned: (s.talentEarned || 0) + (m.tp || 0),
       })
       saveState(get())
       return true
@@ -3046,12 +3066,14 @@ export const useGameStore = create((set, get) => {
     claimAllMail() {
       const s = get()
       let gold = s.gold, gems = s.gems, shards = s.artifactShards
+      let tp = s.talentPoints || 0, tpEarned = s.talentEarned || 0
       const updated = s.mail.map(m => {
         if (m.claimed) return m
         gold += m.gold || 0; gems += m.gems || 0; shards += m.shards || 0
+        tp += m.tp || 0; tpEarned += m.tp || 0
         return { ...m, claimed: true }
       })
-      set({ mail: updated, gold, gems, artifactShards: shards })
+      set({ mail: updated, gold, gems, artifactShards: shards, talentPoints: tp, talentEarned: tpEarned })
       saveState(get())
     },
     deleteReadMail() {

@@ -57,6 +57,7 @@ export default function MailPanel({ onClose }) {
                   {m.gold ? <span><Icon name="gold" size={12} /> {fmt(m.gold)}</span> : null}
                   {m.gems ? <span><Icon name="gem" size={12} /> {m.gems}</span> : null}
                   {m.shards ? <span><Icon name="artifact" size={12} /> {m.shards}</span> : null}
+                  {m.tp ? <span><Icon name="crown" size={12} /> {m.tp} очк.</span> : null}
                 </div>
               </div>
             </div>
