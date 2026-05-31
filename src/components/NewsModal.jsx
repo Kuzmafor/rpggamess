@@ -17,20 +17,40 @@ function fmtDate(iso) {
   return `${d}.${m}.${y}`
 }
 
-// Разбиваем текст на абзацы и списки для аккуратного вывода.
+// Разбиваем текст на абзацы, заголовки разделов и списки.
 function renderBody(body) {
   const blocks = String(body || '').split('\n\n')
   return blocks.map((block, bi) => {
-    const lines = block.split('\n')
-    const isList = lines.every(l => l.trim().startsWith('•'))
-    if (isList) {
-      return (
-        <ul key={bi} className="news-list">
-          {lines.map((l, li) => <li key={li}>{l.replace(/^•\s?/, '')}</li>)}
-        </ul>
-      )
+    const lines = block.split('\n').filter(l => l.trim().length)
+    const out = []
+    let bullets = []
+    const flush = (key) => {
+      if (bullets.length) {
+        out.push(
+          <ul key={'ul' + key} className="news-list">
+            {bullets.map((b, i) => <li key={i}>{b}</li>)}
+          </ul>
+        )
+        bullets = []
+      }
     }
-    return <p key={bi} className="news-para">{block}</p>
+    lines.forEach((line, li) => {
+      const t = line.trim()
+      if (t.startsWith('•')) {
+        bullets.push(t.replace(/^•\s?/, ''))
+      } else {
+        flush(li)
+        // Короткая строка без точки в конце — считаем заголовком раздела.
+        const isHeading = t.length <= 40 && !/[.!?]$/.test(t)
+        out.push(
+          isHeading
+            ? <div key={li} className="news-subhead">{t}</div>
+            : <p key={li} className="news-para">{t}</p>
+        )
+      }
+    })
+    flush('end')
+    return <div key={bi} className="news-block">{out}</div>
   })
 }
 

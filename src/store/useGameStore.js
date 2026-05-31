@@ -1014,9 +1014,9 @@ export const useGameStore = create((set, get) => {
               bossUpdate.enrage = true
             } else if (ph.type === 'roleLock') {
               bossUpdate.roleLock = ph.role
-              // Блокировка по роли теперь ВРЕМЕННАЯ: висит ~8 секунд и спадает,
+              // Блокировка по роли — ВРЕМЕННАЯ: длится 5–15 секунд и спадает,
               // чтобы не превращаться в вечный «блок» до конца боя.
-              bossUpdate.roleLockUntil = Date.now() + 8000
+              bossUpdate.roleLockUntil = Date.now() + (5000 + Math.floor(Math.random() * 10001))
             }
             // adds докинем в шеренгу после босса
             if (ph.type === 'summonAdds') {
