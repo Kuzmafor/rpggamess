@@ -1966,6 +1966,9 @@ html, body { overflow: hidden; }
   -webkit-overflow-scrolling: touch;
 }
 .ls-spacer { flex: 1 1 auto; min-height: 12px; }
+/* Верхний отступ опускает логотип и блок входа ниже от края экрана,
+   чтобы они не липли к верху и не пересекались с угловыми кнопками */
+.ls-spacer-top { flex: 0 0 auto; height: clamp(48px, 14vh, 130px); }
 
 /* Логотип сверху */
 .ls-brand {

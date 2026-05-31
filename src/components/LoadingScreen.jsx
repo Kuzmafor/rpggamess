@@ -117,6 +117,7 @@ export default function LoadingScreen({ onDone }) {
 
       {/* Логотип + слоган */}
       <div className="ls-content">
+      <div className="ls-spacer ls-spacer-top" />
       <div className="ls-brand">
         <div className="ls-logo">
           <Icon name="sword" size={28} />
